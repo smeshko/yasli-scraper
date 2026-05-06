@@ -13,7 +13,7 @@ sibling [`yasli/spec`](https://github.com/smeshko/yasli-spec) repo.
 empty snapshot envelope to R2. Real scraping logic lands in a follow-up
 change (`scraper-pipeline`).
 
-## Quickstart (local)
+## Quickstart (local, Python)
 
 Requires Python 3.12+.
 
@@ -31,6 +31,28 @@ export R2_SECRET_ACCESS_KEY=...
 export R2_BUCKET=yasli-snapshots
 python -m yasli_scraper run --city varna
 ```
+
+## Quickstart (local, Docker)
+
+Mirrors what Railway runs in production.
+
+```bash
+# Build the image (note the trailing '.', the build context)
+docker build -t yasli-scraper:local .
+
+# Put your R2 creds in a local .env (gitignored), values UNQUOTED:
+#   R2_ACCOUNT_ID=...
+#   R2_ACCESS_KEY_ID=...
+#   R2_SECRET_ACCESS_KEY=...
+#   R2_BUCKET=yasli-snapshots
+# Docker's --env-file takes values literally — surrounding "..." would
+# become part of the value and break the R2 endpoint URL.
+
+# Run (the trailing args go to the python -m yasli_scraper entrypoint)
+docker run --rm --env-file .env yasli-scraper:local run --city varna
+```
+
+See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for full troubleshooting.
 
 ## Required environment variables
 
