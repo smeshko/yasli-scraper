@@ -88,31 +88,55 @@ Before relying on the cron, verify the pipeline by triggering a run yourself.
    - The container starts.
    - No "missing environment variable" errors.
    - A clean exit. Railway shows "Exited with code 0" for cron services on
-     success.
+     success. Expected runtime is **~15–30s** (83 institution HTMLs fetched
+     four-at-a-time, each ~120–230 KB). A run that exits in <1s usually
+     means env-var validation failed before any network call.
 3. In Cloudflare R2 → bucket `yasli-snapshots` → **Objects**, navigate to
    `snapshots/varna/`. You should see two objects:
    - `latest.json` — the mutable pointer
    - `<UTC-ISO-timestamp>.json` — e.g. `2026-05-06T12:00:00Z.json`
 4. Click `latest.json` → **Download** (or open the preview). Confirm the
-   content matches the stub envelope:
+   shape:
    ```json
    {
-     "city": "varna",
-     "institutions": [],
      "schema_version": 1,
-     "scraped_at": "2026-05-06T12:00:00Z"
+     "scraped_at": "2026-05-06T12:00:00Z",
+     "city": "varna",
+     "institutions": [ /* ~83 entries with kind/name/address_entries */ ]
    }
    ```
-   `institutions` will be empty until the `scraper-pipeline` change lands.
+   Total `address_entries` rows across all institutions should be on the
+   order of **~236k** for Varna.
 
 If everything matches, the pipeline is working end-to-end and the cron will
 keep producing fresh snapshots weekly.
 
 ---
 
+## Local dev quickstart (no R2 needed)
+
+Use this for everyday iteration when you just want to inspect the JSON.
+
+```bash
+pip install -e ".[dev]"
+python -m yasli_scraper run --city varna --out ./snap.json
+```
+
+`--out` writes the snapshot JSON to the given path and **skips the R2
+upload entirely**. The four `R2_*` env vars are not consulted, so you can
+run this on a fresh clone with no setup. Inspect the result with:
+
+```bash
+python -c "import json; d=json.load(open('snap.json')); \
+  print(len(d['institutions']), 'institutions,', \
+  sum(len(i['address_entries']) for i in d['institutions']), 'rows')"
+```
+
+Expect ~83 institutions and ~236k rows.
+
 ## Local Docker run (against your real R2 bucket)
 
-Use this to test changes before pushing to Railway.
+Use this to test the production code-path before pushing to Railway.
 
 1. Create a local `.env` file (it's gitignored — never commit it):
    ```bash
@@ -132,8 +156,23 @@ Use this to test changes before pushing to Railway.
    ```bash
    docker run --rm --env-file .env scraper:local run --city varna
    ```
+   To exercise the `--out` flag locally without touching R2 (useful when
+   debugging the container build), mount a directory and pass `--out`:
+   ```bash
+   docker run --rm -v "$PWD/out:/out" scraper:local \
+       run --city varna --out /out/snap.json
+   ```
 4. Verify a new timestamped object appears in R2 under `snapshots/varna/`,
    and `latest.json` matches.
+
+## Refreshing test fixtures
+
+The `tests/fixtures/*.html` files are real captures from `dg.uslugi.io`. If
+the source changes shape and the parser starts failing, refresh from the
+spec repo (`yasli/initial/data/raw/`) — see
+`tests/fixtures/README.md` for the exact `cp` commands. To refresh the
+upstream HTMLs themselves, run `initial/scripts/01_fetch_regions.sh` then
+`initial/scripts/02_fetch_rajon_html.py` in the spec repo.
 
 ---
 

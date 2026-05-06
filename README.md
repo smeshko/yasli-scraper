@@ -9,9 +9,10 @@ sibling [`yasli/spec`](https://github.com/smeshko/yasli-spec) repo.
 
 ## Status
 
-`v0.1.0` — stub iteration. The CLI runs end-to-end and writes a well-formed
-empty snapshot envelope to R2. Real scraping logic lands in a follow-up
-change (`scraper-pipeline`).
+`v0.2.0` — pipeline iteration. The CLI runs the full scrape against
+`dg.uslugi.io` and writes a real ~83-institution snapshot to R2 (or to a
+local file with `--out`). The expected weekly cron runtime on Railway is
+~15–30s.
 
 ## Quickstart (local, Python)
 
@@ -24,13 +25,21 @@ pip install -e ".[dev]"
 # Run tests
 pytest
 
-# Run the scraper (needs real R2 credentials — see docs/DEPLOYMENT.md)
+# Local end-to-end against the live source — no R2 setup needed
+python -m yasli_scraper run --city varna --out ./snap.json
+
+# Production-style invocation: writes the snapshot to R2 instead.
+# Needs the four R2 env vars (see docs/DEPLOYMENT.md).
 export R2_ACCOUNT_ID=...
 export R2_ACCESS_KEY_ID=...
 export R2_SECRET_ACCESS_KEY=...
 export R2_BUCKET=yasli-snapshots
 python -m yasli_scraper run --city varna
 ```
+
+The `--out PATH` flag bypasses R2 entirely: the snapshot JSON lands at
+`PATH` and the four `R2_*` env vars are not consulted. Default invocation
+(no `--out`) uploads to R2 and requires those env vars.
 
 ## Quickstart (local, Docker)
 
@@ -86,15 +95,36 @@ guide covering R2 bucket and API token creation, Railway cron service
 configuration, one-off verification, local Docker runs against real R2, and
 troubleshooting.
 
+## Source endpoints and retry policy
+
+The scraper hits `dg.uslugi.io`:
+
+* `POST /lv/api/childhood-rajon` with `{"reception": "<infant|garden|pg>"}`
+  returns the per-reception institution listing.
+* `GET <RAJON URL>` returns the per-institution windows-1251 HTML
+  (street/number blocks).
+
+Every request retries up to **3 attempts** with exponential backoff
+(1s, 2s, 4s) and a `Content-Length` check on each response. If any URL is
+still failing after 3 attempts, the whole run aborts with a non-zero exit
+and **no R2 write** — atomic semantics protect snapshot consumers from
+silent data loss. See `openspec/docs/CONTEXT.md` in the spec repo for the
+full reverse-engineering history of these endpoints.
+
 ## Layout
 
 ```
 src/yasli_scraper/
   __init__.py        # __version__
   __main__.py        # CLI entry point (argparse)
+  http.py            # async fetch with retries + UA + Content-Length check
+  source.py          # dg.uslugi.io endpoint client
+  parser.py          # windows-1251 HTML → (street, number) pairs
+  pipeline.py        # orchestrates fetch → parse → Snapshot
   r2.py              # boto3 wrapper for R2 (S3-compatible)
-  snapshot.py        # snapshot envelope builder
+  snapshot.py        # SCHEMA_VERSION constant + (legacy) stub builder
 tests/               # pytest suite
+tests/fixtures/      # real captured HTMLs — see fixtures/README.md
 docs/DEPLOYMENT.md   # operator setup guide
 Dockerfile           # python:3.12-slim image
 pyproject.toml
