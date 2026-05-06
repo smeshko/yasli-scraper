@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "scraped_at": "2026-05-06T12:30:45Z",
+  "city": "varna",
+  "institutions": [
+    {
+      "external_id": "39",
+      "name": "ДГ №7 \"Изгрев\"",
+      "kind": "kindergarten",
+      "source_url": "https://www.varna.bg/childhood-rajon/39",
+      "address_entries": [
+        {
+          "street": "ГР.ВАРНА БУЛ.ВЛАДИСЛАВ ВАРНЕНЧИК",
+          "number": "041 вх.А"
+        },
+        {
+          "street": "ГР.ВАРНА УЛ.ОРЕХ",
+          "number": "12"
+        }
+      ]
+    },
+    {
+      "external_id": "42",
+      "name": "ЯСЛА №3",
+      "kind": "nursery",
+      "source_url": "https://www.varna.bg/childhood-rajon/42",
+      "address_entries": []
+    }
+  ]
+}

@@ -1,12 +1,13 @@
 """Cloudflare R2 client (S3-compatible) and snapshot upload helper."""
 from __future__ import annotations
 
-import json
 import os
 from datetime import datetime, timezone
 from typing import Any
 
 import boto3
+
+from yasli_scraper.models import Snapshot
 
 
 def _endpoint_url(account_id: str) -> str:
@@ -38,7 +39,7 @@ def _utc_iso_filename(now: datetime | None = None) -> str:
 
 def put_snapshot(
     city: str,
-    payload: dict[str, Any],
+    payload: Snapshot,
     *,
     client: Any | None = None,
     bucket: str | None = None,
@@ -55,7 +56,7 @@ def put_snapshot(
     s3 = client if client is not None else make_client()
     bucket_name = bucket if bucket is not None else os.environ["R2_BUCKET"]
 
-    body = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    body = payload.model_dump_json(indent=2).encode("utf-8")
     timestamped_key = f"snapshots/{city}/{_utc_iso_filename(now)}.json"
     latest_key = f"snapshots/{city}/latest.json"
 
