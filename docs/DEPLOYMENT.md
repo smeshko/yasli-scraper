@@ -99,14 +99,29 @@ Before relying on the cron, verify the pipeline by triggering a run yourself.
    shape:
    ```json
    {
-     "schema_version": 1,
+     "schema_version": 2,
      "scraped_at": "2026-05-06T12:00:00Z",
      "city": "varna",
-     "institutions": [ /* ~83 entries with kind/name/address_entries */ ]
+     "institutions": [
+       {
+         "external_id": "…",
+         "name": "…",
+         "kind": "kindergarten",
+         "source_url": "https://…",
+         "address_entries": [ /* street/number rows */ ],
+         "address": null,
+         "district_code": null,
+         "has_infant_group": false
+       }
+     ]
    }
    ```
-   Total `address_entries` rows across all institutions should be on the
-   order of **~236k** for Varna.
+   Expected kind counts are **12** standalone nurseries, about **52**
+   kindergartens (18 with `has_infant_group=true`), and **12** preschools.
+   Standalone nurseries should have non-null `address` and `district_code`.
+   Kindergartens and preschools should also have non-null `address` from the
+   DG metadata endpoint. Any fallback extraction misses are logged as
+   `address_extraction_failed` with `external_id` and `source_url`.
 
 If everything matches, the pipeline is working end-to-end and the cron will
 keep producing fresh snapshots weekly.
@@ -132,7 +147,7 @@ python -c "import json; d=json.load(open('snap.json')); \
   sum(len(i['address_entries']) for i in d['institutions']), 'rows')"
 ```
 
-Expect ~83 institutions and ~236k rows.
+Expect 12 standalone nurseries, about 52 kindergartens, and 12 preschools.
 
 ## Local Docker run (against your real R2 bucket)
 

@@ -23,9 +23,9 @@ def test_stub_has_required_keys() -> None:
     assert set(payload.keys()) == {"schema_version", "scraped_at", "city", "institutions"}
 
 
-def test_stub_schema_version_is_one() -> None:
+def test_stub_schema_version_is_two() -> None:
     payload = _stub_dict()
-    assert payload["schema_version"] == SCHEMA_VERSION == 1
+    assert payload["schema_version"] == SCHEMA_VERSION == 2
 
 
 def test_stub_city_matches_argument() -> None:

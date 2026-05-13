@@ -7,12 +7,24 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+import dotenv
+
 REQUIRED_ENV_VARS: tuple[str, ...] = (
     "R2_ACCOUNT_ID",
     "R2_ACCESS_KEY_ID",
     "R2_SECRET_ACCESS_KEY",
     "R2_BUCKET",
 )
+
+# Repo-root `.env`, resolved relative to this file so cwd doesn't matter.
+# scraper/src/yasli_scraper/__main__.py → parents[3] is the repo root.
+REPO_ENV_PATH: Path = Path(__file__).resolve().parents[3] / ".env"
+
+
+def _load_repo_env() -> None:
+    # Silently no-op when the file is missing; existing exported values
+    # in os.environ take precedence (override=False is the default).
+    dotenv.load_dotenv(REPO_ENV_PATH)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -38,6 +50,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def validate_env(env: dict[str, str] | None = None) -> str | None:
+    if env is None:
+        _load_repo_env()
     source = os.environ if env is None else env
     for name in REQUIRED_ENV_VARS:
         if not source.get(name):
@@ -48,6 +62,8 @@ def validate_env(env: dict[str, str] | None = None) -> str | None:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    _load_repo_env()
 
     if args.command == "run":
         if args.out is not None:

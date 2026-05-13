@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
 import pytest
 
+import yasli_scraper.__main__ as scraper_main
 from yasli_scraper.__main__ import REQUIRED_ENV_VARS, main
 
 
@@ -71,3 +75,49 @@ def test_empty_env_var_treated_as_missing(
     assert rc != 0
     err = capsys.readouterr().err
     assert "R2_BUCKET" in err
+
+
+def _write_repo_env(path: Path) -> None:
+    path.write_text(
+        "\n".join(
+            [
+                "R2_ACCOUNT_ID=file-account-id",
+                "R2_ACCESS_KEY_ID=file-access-key",
+                "R2_SECRET_ACCESS_KEY=file-secret",
+                "R2_BUCKET=file-bucket",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_validate_env_reads_r2_values_from_repo_env(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo_env = tmp_path / ".env"
+    _write_repo_env(repo_env)
+    monkeypatch.setattr(scraper_main, "REPO_ENV_PATH", repo_env)
+    for name in REQUIRED_ENV_VARS:
+        monkeypatch.delenv(name, raising=False)
+
+    assert scraper_main.validate_env() is None
+    assert os.environ["R2_ACCOUNT_ID"] == "file-account-id"
+    assert os.environ["R2_ACCESS_KEY_ID"] == "file-access-key"
+    assert os.environ["R2_SECRET_ACCESS_KEY"] == "file-secret"
+    assert os.environ["R2_BUCKET"] == "file-bucket"
+
+
+def test_exported_r2_bucket_overrides_repo_env(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo_env = tmp_path / ".env"
+    _write_repo_env(repo_env)
+    monkeypatch.setattr(scraper_main, "REPO_ENV_PATH", repo_env)
+    for name in REQUIRED_ENV_VARS:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("R2_BUCKET", "exported-bucket")
+
+    assert scraper_main.validate_env() is None
+    assert os.environ["R2_BUCKET"] == "exported-bucket"

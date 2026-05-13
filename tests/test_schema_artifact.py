@@ -11,6 +11,6 @@ def test_committed_schema_matches_generator() -> None:
     """
     on_disk = SCHEMA_FILE.read_text(encoding="utf-8")
     assert on_disk == render_schema(), (
-        "schemas/snapshot.v1.schema.json is out of date — "
+        "schemas/snapshot.v2.schema.json is out of date — "
         "run `python -m yasli_scraper.tools.gen_schema`"
     )

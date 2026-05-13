@@ -9,10 +9,10 @@ sibling [`yasli/spec`](https://github.com/smeshko/yasli-spec) repo.
 
 ## Status
 
-`v0.2.0` — pipeline iteration. The CLI runs the full scrape against
-`dg.uslugi.io` and writes a real ~83-institution snapshot to R2 (or to a
-local file with `--out`). The expected weekly cron runtime on Railway is
-~15–30s.
+`v0.3.0` — snapshot v2 pipeline. The CLI scrapes DG catchments from
+`dg.uslugi.io`, standalone nurseries from `newkg.uslugi.io`, and writes a
+~76-institution snapshot to R2 (or to a local file with `--out`). The
+expected weekly cron runtime on Railway is ~15–30s.
 
 ## Quickstart (local, Python)
 
@@ -97,12 +97,17 @@ troubleshooting.
 
 ## Source endpoints and retry policy
 
-The scraper hits `dg.uslugi.io`:
+The scraper hits two municipal source portals:
 
 * `POST /lv/api/childhood-rajon` with `{"reception": "<infant|garden|pg>"}`
-  returns the per-reception institution listing.
+  on `dg.uslugi.io` returns the per-reception institution listing. `infant`
+  and `garden` both map to `kind="kindergarten"`; the infant-group marker in
+  `DZ_NAME` sets `has_infant_group`.
 * `GET <RAJON URL>` returns the per-institution windows-1251 HTML
   (street/number blocks).
+* `POST /lv/api/childhood` with `{"reception": "jasla"}` on
+  `newkg.uslugi.io` returns the 12 standalone nurseries. These records carry
+  `address` and `district_code`, but no catchment `address_entries`.
 
 Every request retries up to **3 attempts** with exponential backoff
 (1s, 2s, 4s) and a `Content-Length` check on each response. If any URL is
@@ -119,7 +124,8 @@ src/yasli_scraper/
   __main__.py        # CLI entry point (argparse)
   http.py            # async fetch with retries + UA + Content-Length check
   source.py          # dg.uslugi.io endpoint client
-  parser.py          # windows-1251 HTML → (street, number) pairs
+  source_jasla.py    # newkg.uslugi.io standalone nursery client
+  parser.py          # windows-1251 HTML → address + (street, number) pairs
   pipeline.py        # orchestrates fetch → parse → Snapshot
   r2.py              # boto3 wrapper for R2 (S3-compatible)
   snapshot.py        # SCHEMA_VERSION constant + (legacy) stub builder

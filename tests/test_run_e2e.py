@@ -12,7 +12,10 @@ from moto import mock_aws
 
 from yasli_scraper import r2 as r2_module
 from yasli_scraper.__main__ import REQUIRED_ENV_VARS, main
-from yasli_scraper.source import BASE_URL, REGIONS_PATH
+from yasli_scraper.source import BASE_URL, CHILDHOOD_PATH as DG_CHILDHOOD_PATH
+from yasli_scraper.source import REGIONS_PATH
+from yasli_scraper.source_jasla import BASE_URL as JASLA_BASE_URL
+from yasli_scraper.source_jasla import CHILDHOOD_PATH as JASLA_CHILDHOOD_PATH
 
 from .fixtures import load_html
 
@@ -23,6 +26,18 @@ PIPELINE_INSTITUTIONS = [
     ("garden", "34", "garden_34.html", 'ДГ№1 "Светулка"'),
     ("pg", "10", "pg_10.html", 'ОУ "Капитан Петко войвода"'),
 ]
+JASLA_RECORD = {
+    "DZ_ID": "9001",
+    "DZ_NAME": "ДЯ №1 „Щастливо детство“",
+    "ADDRESS": "ул. \"Славянска\" 21",
+    "RAJON_ID": "1",
+    "RAJON": "01",
+}
+DG_ADDRESSES = {
+    "39": 'гр. Варна, ул. "Тодор Влайков" №65 А',
+    "34": 'гр. Варна, ул. "Парижка комуна" №25',
+    "10": 'гр. Варна, бул. "Владислав Варненчик" №36',
+}
 
 
 def _rajon_url(reception: str, ext_id: str) -> str:
@@ -50,6 +65,19 @@ def _mock_scrape() -> None:
                 content=json.dumps({"childhoodRajon": entries}).encode(),
             )
         )
+        records = []
+        for entry in entries:
+            external_id = entry["RAJON"].rsplit("/", 1)[-1].removesuffix(".html")
+            records.append({"DZ_ID": external_id, "ADDRESS": DG_ADDRESSES[external_id]})
+        respx.post(f"{BASE_URL}{DG_CHILDHOOD_PATH}", json={"reception": reception}).mock(
+            return_value=httpx.Response(200, content=json.dumps({"childhood": records}).encode())
+        )
+    respx.post(f"{JASLA_BASE_URL}{JASLA_CHILDHOOD_PATH}", json={"reception": "jasla"}).mock(
+        return_value=httpx.Response(
+            200,
+            content=json.dumps({"childhood": [JASLA_RECORD]}).encode(),
+        )
+    )
 
 
 @pytest.fixture
@@ -91,10 +119,10 @@ def test_run_writes_full_snapshot_to_r2(
 
         latest = client.get_object(Bucket=BUCKET, Key="snapshots/varna/latest.json")
         payload = json.loads(latest["Body"].read())
-        assert payload["schema_version"] == 1
+        assert payload["schema_version"] == 2
         assert payload["city"] == "varna"
         assert payload["scraped_at"].endswith("Z")
-        assert len(payload["institutions"]) == len(PIPELINE_INSTITUTIONS)
+        assert len(payload["institutions"]) == len(PIPELINE_INSTITUTIONS) + 1
         kinds = {i["kind"] for i in payload["institutions"]}
         assert kinds == {"nursery", "kindergarten", "preschool"}
 
@@ -116,8 +144,8 @@ def test_out_writes_file_and_skips_r2(
     assert rc == 0
     assert out.exists()
     payload = json.loads(out.read_text())
-    assert payload["schema_version"] == 1
-    assert len(payload["institutions"]) == len(PIPELINE_INSTITUTIONS)
+    assert payload["schema_version"] == 2
+    assert len(payload["institutions"]) == len(PIPELINE_INSTITUTIONS) + 1
 
 
 @respx.mock

@@ -15,7 +15,7 @@ BUCKET = "yasli-snapshots-test"
 
 def _make_snapshot(when: datetime | None = None) -> Snapshot:
     return Snapshot(
-        schema_version=1,
+        schema_version=2,
         scraped_at=when or datetime(2026, 5, 6, 12, 30, 45, tzinfo=timezone.utc),
         city="varna",
         institutions=[],
@@ -77,7 +77,7 @@ def test_put_snapshot_writes_timestamped_before_latest(s3_client) -> None:
 def test_put_snapshot_failure_on_first_write_does_not_touch_latest(s3_client) -> None:
     """If the timestamped write fails, latest.json must not be modified."""
     # Seed a previous "good" latest.
-    previous_payload = {"schema_version": 1, "city": "varna", "institutions": ["previous"]}
+    previous_payload = {"schema_version": 2, "city": "varna", "institutions": ["previous"]}
     s3_client.put_object(
         Bucket=BUCKET,
         Key="snapshots/varna/latest.json",

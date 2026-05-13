@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from yasli_scraper.parser import ParseError, parse_address_html
+from yasli_scraper.parser import (
+    ParseError,
+    parse_address_html,
+    parse_institution_address_html,
+)
 
 from .fixtures import load_html
 
@@ -61,6 +65,37 @@ def test_no_street_blocks_raises() -> None:
     html = b"<html><body><h1>nothing here</h1></body></html>"
     with pytest.raises(ParseError, match="no recognisable street blocks"):
         list(parse_address_html(html))
+
+
+def test_institution_address_extraction_from_header() -> None:
+    html = (
+        "<body>"
+        "<h2>ДГ №1</h2>"
+        "<div class='institution-address'> ул.  \"Славянска\"   № 4 </div>"
+        "<hr>"
+        "<p>STREET ONE</p>"
+        "<div class='A'>001</div>"
+        "</body>"
+    ).encode("windows-1251")
+
+    assert parse_institution_address_html(html) == 'ул. "Славянска" № 4'
+
+
+@pytest.mark.parametrize(
+    ("fixture", "expected"),
+    [
+        ("kg_with_address.html", 'ул. "Славянска" 4'),
+        ("pg_with_address.html", 'бул. "Княз Борис I" 88'),
+    ],
+)
+def test_institution_address_extraction_from_fixture_html(
+    fixture: str, expected: str
+) -> None:
+    assert parse_institution_address_html(load_html(fixture)) == expected
+
+
+def test_institution_address_returns_none_when_missing() -> None:
+    assert parse_institution_address_html(load_html("garden_34.html")) is None
 
 
 def test_synthetic_block_extraction() -> None:

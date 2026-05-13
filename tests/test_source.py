@@ -8,10 +8,13 @@ import respx
 
 from yasli_scraper.source import (
     BASE_URL,
+    CHILDHOOD_PATH,
     RECEPTIONS,
     REGIONS_PATH,
+    InstitutionMetadata,
     InstitutionStub,
     fetch_html,
+    fetch_institution_metadata,
     fetch_regions,
 )
 
@@ -27,6 +30,12 @@ def _no_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
 def _regions_payload(name: str, url: str) -> bytes:
     return json.dumps(
         {"childhoodRajon": [{"DZ_NAME": name, "RAJON": url}]}
+    ).encode()
+
+
+def _metadata_payload(external_id: str, address: str) -> bytes:
+    return json.dumps(
+        {"childhood": [{"DZ_ID": external_id, "ADDRESS": address}]}
     ).encode()
 
 
@@ -50,6 +59,29 @@ async def test_fetch_regions_parses_entries() -> None:
             source_url="https://dg.uslugi.io/lv/documents/infant/varna/rajon/39.html",
         )
     ]
+
+
+@respx.mock
+async def test_fetch_institution_metadata_parses_addresses() -> None:
+    route = respx.post(f"{BASE_URL}{CHILDHOOD_PATH}").mock(
+        return_value=httpx.Response(
+            200,
+            content=_metadata_payload("39", " гр. Варна,\r\n ул. \"Тодор Влайков\"  №71 "),
+        )
+    )
+
+    async with httpx.AsyncClient() as client:
+        metadata = await fetch_institution_metadata(client, "garden")
+
+    sent = route.calls.last.request
+    assert sent.method == "POST"
+    assert json.loads(sent.content) == {"reception": "garden"}
+    assert metadata == {
+        "39": InstitutionMetadata(
+            external_id="39",
+            address='гр. Варна, ул. "Тодор Влайков" №71',
+        )
+    }
 
 
 @respx.mock

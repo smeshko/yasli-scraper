@@ -18,9 +18,6 @@ htmlcov/
 .venv/
 venv/
 env/
-.env
-.env.*
-!.env.example
 
 # IDE
 .vscode/

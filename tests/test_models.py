@@ -1,4 +1,4 @@
-"""Validation regression tests for the v1 snapshot Pydantic models."""
+"""Validation regression tests for the v2 snapshot Pydantic models."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -17,12 +17,15 @@ def _valid_institution_kwargs() -> dict[str, Any]:
         "kind": "kindergarten",
         "source_url": "https://example.com/dz/39",
         "address_entries": [AddressEntry(street="ул.Орех", number="12")],
+        "address": "ул. Тестова 1",
+        "district_code": None,
+        "has_infant_group": False,
     }
 
 
 def _valid_snapshot_kwargs() -> dict[str, Any]:
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "scraped_at": datetime(2026, 5, 6, 12, 30, 45, tzinfo=timezone.utc),
         "city": "varna",
         "institutions": [Institution(**_valid_institution_kwargs())],
@@ -70,6 +73,13 @@ def test_missing_institution_field_raises() -> None:
         Institution(**kwargs)
 
 
+def test_missing_has_infant_group_raises() -> None:
+    kwargs = _valid_institution_kwargs()
+    del kwargs["has_infant_group"]
+    with pytest.raises(ValidationError, match="has_infant_group"):
+        Institution(**kwargs)
+
+
 def test_missing_address_entry_field_raises() -> None:
     with pytest.raises(ValidationError, match="number"):
         AddressEntry(street="ул.Орех")  # type: ignore[call-arg]
@@ -102,6 +112,37 @@ def test_unknown_kind_raises() -> None:
         Institution(**kwargs)
 
 
+def test_invalid_district_code_raises() -> None:
+    kwargs = _valid_institution_kwargs() | {"district_code": "06"}
+    with pytest.raises(ValidationError, match="district_code"):
+        Institution(**kwargs)
+
+
+def test_nursery_requires_district_code() -> None:
+    kwargs = _valid_institution_kwargs() | {
+        "kind": "nursery",
+        "address_entries": [],
+        "district_code": None,
+    }
+    with pytest.raises(ValidationError, match="district_code"):
+        Institution(**kwargs)
+
+
+def test_nursery_accepts_empty_catchment_with_district() -> None:
+    kwargs = _valid_institution_kwargs() | {
+        "kind": "nursery",
+        "address_entries": [],
+        "district_code": "01",
+    }
+    Institution(**kwargs)
+
+
+def test_address_may_be_null_but_not_empty() -> None:
+    Institution(**(_valid_institution_kwargs() | {"address": None}))
+    with pytest.raises(ValidationError, match="address"):
+        Institution(**(_valid_institution_kwargs() | {"address": ""}))
+
+
 # --- 4.4 malformed datetime ---
 
 def test_malformed_datetime_raises() -> None:
@@ -131,10 +172,16 @@ def test_non_url_source_url_raises() -> None:
         Institution(**kwargs)
 
 
-# --- 4.6 schema_version other than 1 ---
+# --- 4.6 schema_version other than 2 ---
 
-def test_schema_version_two_raises() -> None:
-    kwargs = _valid_snapshot_kwargs() | {"schema_version": 2}
+def test_schema_version_one_raises() -> None:
+    kwargs = _valid_snapshot_kwargs() | {"schema_version": 1}
+    with pytest.raises(ValidationError, match="schema_version"):
+        Snapshot(**kwargs)
+
+
+def test_schema_version_three_raises() -> None:
+    kwargs = _valid_snapshot_kwargs() | {"schema_version": 3}
     with pytest.raises(ValidationError, match="schema_version"):
         Snapshot(**kwargs)
 

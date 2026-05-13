@@ -14,16 +14,16 @@ drifts from what the models emit.
 
 ## Files
 
-- `snapshot.v1.schema.json` — JSON Schema (draft 2020-12, via Pydantic) for
-  the v1 envelope. Vendor this into any non-Python consumer.
+- `snapshot.v2.schema.json` — JSON Schema (draft 2020-12, via Pydantic) for
+  the v2 envelope. Vendor this into any non-Python consumer.
 - `examples/varna-stub.json` — a minimal valid snapshot, used as a
   reference and as a fixture for cross-language consumers.
 
-## Envelope (v1)
+## Envelope (v2)
 
 | Field            | Type                                        | Notes |
 | ---------------- | ------------------------------------------- | ----- |
-| `schema_version` | integer (literal `1`)                       | Bumping always indicates a breaking change. |
+| `schema_version` | integer (literal `2`)                       | Bumping always indicates a breaking change. |
 | `scraped_at`     | ISO 8601 UTC datetime ending in `Z`         | Wall-clock instant the scrape completed. |
 | `city`           | non-empty string slug (e.g. `"varna"`)      | One snapshot per city per run. |
 | `institutions`   | array of `Institution` (possibly empty)     | One entry per municipal institution. |
@@ -34,9 +34,12 @@ drifts from what the models emit.
 | ----------------- | --------------------------------------------------- | ----- |
 | `external_id`     | non-empty string                                    | The source-system ID (e.g. `"39"`); `external_` prefix disambiguates from any internal DB primary key the backend assigns at ingest. |
 | `name`            | non-empty string                                    | Raw `DZ_NAME` from the source — preserved verbatim, including quotes / mixed punctuation. |
-| `kind`            | one of `"nursery"`, `"kindergarten"`, `"preschool"` | Translated from source jargon at the scraper boundary (`infant` → `nursery`, `garden` → `kindergarten`, `pg` → `preschool`). |
+| `kind`            | one of `"nursery"`, `"kindergarten"`, `"preschool"` | `infant` and `garden` DG receptions both produce `"kindergarten"`; standalone `jasla` records from `newkg.uslugi.io` produce `"nursery"`; `pg` produces `"preschool"`. |
 | `source_url`      | HTTPS URL                                           | Page on the source portal that originated this institution. |
 | `address_entries` | array of `AddressEntry` (possibly empty)            | One entry per street/number row. |
+| `address`         | non-empty string or `null`                          | Physical institution address when the source exposes it; whitespace is trimmed/collapsed only. |
+| `district_code`   | one of `"01"`–`"05"` or `null`                      | Varna district code. Required by validation for `kind="nursery"`; permitted for all kinds. |
+| `has_infant_group` | boolean                                            | `true` for kindergartens whose DG name includes the `/ с яслена група/` marker; standalone nurseries and preschools are always `false`. |
 
 ## `AddressEntry`
 
@@ -56,6 +59,9 @@ drifts from what the models emit.
   constraint above. There is no separate `validate_snapshot()` step.
 - The scraper does not normalise street / number. Any canonicalisation is
   the backend's job during ingest.
+- Standalone nursery rows have no source catchment streets today, so their
+  `address_entries` arrays are empty and routing is handled downstream by
+  district once `add-grao-district-routing` lands.
 
 ## Versioning policy
 
@@ -63,15 +69,15 @@ drifts from what the models emit.
   change.
 - Consumers MUST reject snapshots whose `schema_version` is not one they
   support, without attempting to interpret the rest of the document.
-- Future versions ship as **sibling files** (`snapshot.v2.schema.json`,
-  `models.py` gains a `SnapshotV2`). v1 is never edited in place once
-  published.
+- Future versions ship as **sibling files** (`snapshot.v3.schema.json`,
+  `models.py` gains a `SnapshotV3`). Earlier versions are never edited in
+  place once published.
 - Examples of changes that require a version bump: adding/removing a
   required field, changing a field's type, changing the `kind` value
   vocabulary, changing the meaning of an existing field.
 
 ## For non-Python consumers
 
-Vendor `snapshot.v1.schema.json` into your repo and add a test that
+Vendor `snapshot.v2.schema.json` into your repo and add a test that
 asserts byte-for-byte equality with the upstream copy. A small duplication
 beats the friction of a single-file submodule.
