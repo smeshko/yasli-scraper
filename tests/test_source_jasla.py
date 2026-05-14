@@ -43,7 +43,7 @@ def test_parse_jasla_payload_normalises_contract_fields() -> None:
     assert record.name == 'ДЯ №1 "Щастливо детство"'
     assert record.address == 'ул. "Славянска" 21'
     assert record.district_code == "01"
-    assert record.source_url == "https://newkg.uslugi.io/lv/#dz-9001"
+    assert record.source_url == "https://newkg.uslugi.io/jasla/childhood?reception=jasla"
 
 
 def test_parse_jasla_payload_maps_rajon_id_when_code_absent() -> None:

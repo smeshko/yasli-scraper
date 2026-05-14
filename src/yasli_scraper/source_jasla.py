@@ -14,7 +14,7 @@ from yasli_scraper.models import DistrictCode
 
 BASE_URL = "https://newkg.uslugi.io"
 CHILDHOOD_PATH = "/lv/api/childhood"
-JASLA_LISTING_URL = f"{BASE_URL}/lv/"
+JASLA_LISTING_URL = f"{BASE_URL}/jasla/childhood?reception=jasla"
 
 DISTRICT_CODE_BY_RAJON_ID: dict[str, DistrictCode] = {
     "1": "01",  # Одесос
@@ -78,7 +78,7 @@ def parse_jasla_payload(raw: bytes) -> list[JaslaRecord]:
             JaslaRecord(
                 external_id=external_id,
                 name=_normalise_name(_required_text(record, "DZ_NAME")),
-                source_url=f"{JASLA_LISTING_URL}#dz-{external_id}",
+                source_url=JASLA_LISTING_URL,
                 address=_normalise_address(record.get("ADDRESS")),
                 district_code=_district_code(record),
             )
