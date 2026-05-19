@@ -103,7 +103,9 @@ async def run(
         )
 
     if client is None:
-        async with httpx.AsyncClient() as owned:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(30.0, connect=10.0),
+        ) as owned:
             return await _run_with_client(city, owned, now=now)
     return await _run_with_client(city, client, now=now)
 
