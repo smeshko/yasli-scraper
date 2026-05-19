@@ -60,8 +60,8 @@ drifts from what the models emit.
 - The scraper does not normalise street / number. Any canonicalisation is
   the backend's job during ingest.
 - Standalone nursery rows have no source catchment streets today, so their
-  `address_entries` arrays are empty and routing is handled downstream by
-  district once `add-grao-district-routing` lands.
+  `address_entries` arrays are empty. The backend handles nursery routing
+  downstream by district.
 
 ## Versioning policy
 
