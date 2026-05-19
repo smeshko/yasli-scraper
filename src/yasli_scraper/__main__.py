@@ -16,6 +16,11 @@ REQUIRED_ENV_VARS: tuple[str, ...] = (
     "R2_BUCKET",
 )
 
+# Known floor for Varna is ~76 institutions (12 nurseries + ~52 kindergartens
+# + 12 preschools). 50 sits well below that but far above "the scrape
+# silently broke into emptiness".
+MIN_EXPECTED_INSTITUTIONS = 50
+
 # Repo-root `.env`, resolved relative to this file so cwd doesn't matter.
 # scraper/src/yasli_scraper/__main__.py → parents[3] is the repo root.
 REPO_ENV_PATH: Path = Path(__file__).resolve().parents[3] / ".env"
@@ -89,6 +94,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             snapshot = asyncio.run(pipeline.run(args.city))
         except Exception as exc:
             print(f"error: scrape failed: {exc}", file=sys.stderr)
+            return 1
+
+        if len(snapshot.institutions) < MIN_EXPECTED_INSTITUTIONS:
+            print(
+                f"error: scrape produced only {len(snapshot.institutions)} "
+                f"institutions (< {MIN_EXPECTED_INSTITUTIONS}); refusing to upload",
+                file=sys.stderr,
+            )
             return 1
 
         if args.out is not None:

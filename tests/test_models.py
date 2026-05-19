@@ -66,6 +66,12 @@ def test_missing_institutions_raises() -> None:
         Snapshot(**kwargs)
 
 
+def test_snapshot_rejects_empty_institutions() -> None:
+    kwargs = _valid_snapshot_kwargs() | {"institutions": []}
+    with pytest.raises(ValidationError, match="institutions"):
+        Snapshot(**kwargs)
+
+
 def test_missing_institution_field_raises() -> None:
     kwargs = _valid_institution_kwargs()
     del kwargs["external_id"]

@@ -23,7 +23,6 @@ import httpx
 
 from yasli_scraper.models import AddressEntry, DistrictCode, Institution, Kind, Snapshot
 from yasli_scraper.parser import parse_address_html, parse_institution_address_html
-from yasli_scraper.snapshot import SCHEMA_VERSION
 from yasli_scraper.source import (
     RECEPTIONS,
     InstitutionStub,
@@ -35,6 +34,7 @@ from yasli_scraper.source import (
 from yasli_scraper.source_jasla import JaslaRecord, fetch_jasla
 
 CONCURRENCY = 4
+SCHEMA_VERSION = 2
 SUPPORTED_CITIES: tuple[str, ...] = ("varna",)
 PIPELINE_RECEPTIONS: tuple[str, ...] = ("garden", "infant", "pg")
 

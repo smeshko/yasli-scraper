@@ -119,6 +119,7 @@
       "items": {
         "$ref": "#/$defs/Institution"
       },
+      "minItems": 1,
       "title": "Institutions",
       "type": "array"
     },

@@ -74,7 +74,7 @@ class Snapshot(BaseModel):
     schema_version: Literal[2]
     scraped_at: AwareDatetime
     city: str = Field(min_length=1)
-    institutions: list[Institution]
+    institutions: list[Institution] = Field(min_length=1)
 
     @field_serializer("scraped_at")
     def _serialise_scraped_at(self, value: datetime) -> str:

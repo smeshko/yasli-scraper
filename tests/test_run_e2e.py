@@ -10,6 +10,7 @@ import pytest
 import respx
 from moto import mock_aws
 
+from yasli_scraper import __main__ as scraper_main
 from yasli_scraper import r2 as r2_module
 from yasli_scraper.__main__ import REQUIRED_ENV_VARS, main
 from yasli_scraper.source import BASE_URL, CHILDHOOD_PATH as DG_CHILDHOOD_PATH
@@ -78,6 +79,12 @@ def _mock_scrape() -> None:
             content=json.dumps({"childhood": [JASLA_RECORD]}).encode(),
         )
     )
+
+
+@pytest.fixture(autouse=True)
+def _lower_min_institutions_floor(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The fixture pipeline yields 4 institutions; the production floor is 50.
+    monkeypatch.setattr(scraper_main, "MIN_EXPECTED_INSTITUTIONS", 1)
 
 
 @pytest.fixture

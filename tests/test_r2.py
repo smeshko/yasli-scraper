@@ -7,7 +7,7 @@ import boto3
 import pytest
 from moto import mock_aws
 
-from yasli_scraper.models import Snapshot
+from yasli_scraper.models import AddressEntry, Institution, Snapshot
 from yasli_scraper.r2 import put_snapshot
 
 BUCKET = "yasli-snapshots-test"
@@ -18,7 +18,18 @@ def _make_snapshot(when: datetime | None = None) -> Snapshot:
         schema_version=2,
         scraped_at=when or datetime(2026, 5, 6, 12, 30, 45, tzinfo=timezone.utc),
         city="varna",
-        institutions=[],
+        institutions=[
+            Institution(
+                external_id="39",
+                name='ДГ №7 "Изгрев"',
+                kind="kindergarten",
+                source_url="https://example.com/dz/39",
+                address_entries=[AddressEntry(street="ул.Орех", number="12")],
+                address="ул. Тестова 1",
+                district_code=None,
+                has_infant_group=False,
+            )
+        ],
     )
 
 
