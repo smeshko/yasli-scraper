@@ -3,9 +3,9 @@
 Status: planned
 Created: 2026-08-17
 Depends on: backend epic 01, phase 1.1 (merged **and deployed**)
-Project: none
-Linear: none
-Milestone: none
+Project: institution-profiles
+Linear: YAS-3 (https://linear.app/ivo-tsonev/issue/YAS-3)
+Milestone: 93a988d5-f6c3-466c-a6b2-7e3e35c92d6a
 
 ## Overview
 
@@ -40,7 +40,7 @@ the snapshot outright.
 
 **Plan**: [scraper-contact-metadata](../plans/scraper-contact-metadata/PLAN.md) · status: planned
 
-**Linear**: none
+**Linear**: YAS-10 (https://linear.app/ivo-tsonev/issue/YAS-10)
 
 **Goal**: The scraper carries the contact fields it already fetches through to snapshot v2 instead of discarding them.
 
