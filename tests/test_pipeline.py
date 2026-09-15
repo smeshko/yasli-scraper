@@ -38,12 +38,53 @@ JASLA_RECORD = {
     "ADDRESS": " ул.  \"Славянска\"   21 ",
     "RAJON_ID": "1",
     "RAJON": "01",
+    "TEL": "\t052 820758 0885665404",
+    "EMAIL": "prikazen4@mail.bg",
+    "NAME_D": "Маргарита Георгиева",
+    "WEBSITE": "",
 }
 DG_ADDRESSES = {
     "39": 'гр. Варна, ул. "Тодор Влайков" №65 А',
     "34": 'гр. Варна, ул. "Парижка комуна" №25',
     "10": 'гр. Варна, бул. "Владислав Варненчик" №36',
 }
+# Raw contact keys as the live metadata endpoint returns them (noise included).
+DG_CONTACTS = {
+    "39": {
+        "TEL": "052/613130",
+        "EMAIL": "info-400229@edu.mon.bg",
+        "NAME_D": "Росица  Велева - Илчева\r\n",
+        "WEBSITE": None,
+    },
+    "34": {
+        "TEL": "052/613039",
+        "EMAIL": "info-400240@edu.mon.bg\r\n",
+        "NAME_D": "Катя Григорова ",
+        "WEBSITE": None,
+    },
+    "10": {
+        "TEL": "052/378 434",
+        "EMAIL": "http://ou-kap-petko.com/",
+        "NAME_D": "Александрина Величкова",
+        "WEBSITE": "http://ou-kap-petko.com/\r\r\n",
+    },
+}
+# (phone, email, director, website) expected on the built Institution.
+EXPECTED_CONTACTS = {
+    "39": ("052/613130", "info-400229@edu.mon.bg", "Росица Велева - Илчева", None),
+    "34": ("052/613039", "info-400240@edu.mon.bg", "Катя Григорова", None),
+    "10": (
+        "052/378 434",
+        "http://ou-kap-petko.com/",
+        "Александрина Величкова",
+        "http://ou-kap-petko.com/",
+    ),
+}
+CONTACT_FIELDS = ("phone", "email", "director", "website")
+
+
+def _contacts(institution: Institution) -> tuple[str | None, ...]:
+    return tuple(getattr(institution, field) for field in CONTACT_FIELDS)
 
 
 def _rajon_url(reception: str, ext_id: str) -> str:
@@ -82,7 +123,10 @@ def _mock_endpoints(*, include_jasla: bool = True, include_metadata: bool = True
         if include_metadata:
             for entry in entries:
                 external_id = entry["RAJON"].rsplit("/", 1)[-1].removesuffix(".html")
-                records.append({"DZ_ID": external_id, "ADDRESS": DG_ADDRESSES[external_id]})
+                records.append(
+                    {"DZ_ID": external_id, "ADDRESS": DG_ADDRESSES[external_id]}
+                    | DG_CONTACTS[external_id]
+                )
         respx.post(f"{BASE_URL}{DG_CHILDHOOD_PATH}", json={"reception": reception}).mock(
             return_value=httpx.Response(200, content=json.dumps({"childhood": records}).encode())
         )
@@ -126,6 +170,7 @@ async def test_run_builds_full_snapshot(caplog: pytest.LogCaptureFixture) -> Non
         assert inst.name == name
         assert str(inst.source_url) == _rajon_url(reception, ext_id)
         assert inst.address == DG_ADDRESSES[ext_id]
+        assert _contacts(inst) == EXPECTED_CONTACTS[ext_id]
         assert inst.district_code is None
         assert inst.has_infant_group is False
 
@@ -133,6 +178,12 @@ async def test_run_builds_full_snapshot(caplog: pytest.LogCaptureFixture) -> Non
     assert nursery.kind == "nursery"
     assert nursery.name == 'ДЯ №1 "Щастливо детство"'
     assert nursery.address == 'ул. "Славянска" 21'
+    assert _contacts(nursery) == (
+        "052 820758 0885665404",
+        "prikazen4@mail.bg",
+        "Маргарита Георгиева",
+        None,
+    )
     assert nursery.district_code == "01"
     assert nursery.address_entries == []
     assert nursery.has_infant_group is False
@@ -151,7 +202,10 @@ async def test_run_logs_address_extraction_failure_when_metadata_missing(
 
     snapshot = await run("varna")
 
-    assert all(inst.address is None for inst in snapshot.institutions if inst.kind != "nursery")
+    dg = [inst for inst in snapshot.institutions if inst.kind != "nursery"]
+    assert all(inst.address is None for inst in dg)
+    # There is no HTML fallback for contacts — a missing metadata row means None.
+    assert all(_contacts(inst) == (None, None, None, None) for inst in dg)
     assert "address_extraction_failed=3" in caplog.text
     assert "external_id=39" in caplog.text
 
@@ -303,3 +357,55 @@ def test_coalesce_merges_by_external_id_and_kind() -> None:
         ("ул. А", "1"),
         ("ул. Б", "2"),
     ]
+
+
+def _kindergarten(**overrides: object) -> Institution:
+    base: dict[str, object] = {
+        "external_id": "39",
+        "name": 'ДГ№6 "Палечко"',
+        "kind": "kindergarten",
+        "source_url": "https://example.com/39",
+        "address_entries": [],
+        "address": None,
+        "district_code": None,
+        "has_infant_group": False,
+    }
+    return Institution(**(base | overrides))  # type: ignore[arg-type]
+
+
+FULL_CONTACTS = {
+    "phone": "052/613130",
+    "email": "info-400229@edu.mon.bg",
+    "director": "Росица Велева - Илчева",
+    "website": "https://example.bg/",
+}
+
+
+def test_coalesce_keeps_contacts_when_both_receptions_carry_them() -> None:
+    merged = coalesce_institutions(
+        [_kindergarten(**FULL_CONTACTS), _kindergarten(**FULL_CONTACTS, has_infant_group=True)]
+    )
+
+    assert len(merged) == 1
+    assert _contacts(merged[0]) == tuple(FULL_CONTACTS[field] for field in CONTACT_FIELDS)
+
+
+@pytest.mark.parametrize("blank_first", [True, False], ids=["blank-then-value", "value-then-blank"])
+@pytest.mark.parametrize("field", CONTACT_FIELDS)
+def test_coalesce_fills_blank_contact_from_other_reception(field: str, blank_first: bool) -> None:
+    full = _kindergarten(**FULL_CONTACTS)
+    blank = _kindergarten(**(FULL_CONTACTS | {field: None}))
+
+    merged = coalesce_institutions([blank, full] if blank_first else [full, blank])
+
+    assert len(merged) == 1
+    assert _contacts(merged[0]) == tuple(FULL_CONTACTS[field] for field in CONTACT_FIELDS)
+
+
+def test_coalesce_conflicting_contacts_first_wins() -> None:
+    """Deterministic, like address: the first reception seen (garden) wins."""
+    garden = _kindergarten(phone="052/000001")
+    infant = _kindergarten(phone="052/000002", has_infant_group=True)
+
+    assert coalesce_institutions([garden, infant])[0].phone == "052/000001"
+    assert coalesce_institutions([infant, garden])[0].phone == "052/000002"
