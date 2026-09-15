@@ -1,6 +1,6 @@
 # Plan: Emit contact metadata in the snapshot
 
-Status: draft
+Status: in-progress
 Branch: feature/yas-10-scraper-contact-metadata
 Risk: medium
 Epic: 01 — Snapshot contact metadata ([epic](../../epics/01-contact-metadata.md))
@@ -140,7 +140,7 @@ See [RESEARCH.md](./RESEARCH.md). The short version:
 Task state lives here. Tasks are appended by `scripts/add_task.py` and
 `scripts/add_final_task.py`. Update the checkboxes as work progresses.
 
-- [ ] TASK-001: Carry contacts through the dg.uslugi.io metadata client
+- [x] TASK-001: Carry contacts through the dg.uslugi.io metadata client
 - [ ] TASK-002: Carry contacts through the jasla nursery client
 - [ ] TASK-003: Add contact fields to the snapshot models and pipeline (depends on TASK-001, TASK-002)
 - [ ] TASK-004: Regenerate the v2 schema artifact and field table (depends on TASK-003)
