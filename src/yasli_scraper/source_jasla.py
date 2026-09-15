@@ -41,11 +41,23 @@ class JaslaPayloadError(ValueError):
 
 @dataclass(frozen=True)
 class JaslaRecord:
+    """One standalone nursery from the ``jasla`` reception.
+
+    ``address`` and the four contact fields are whitespace-collapsed only
+    (see :func:`_normalise_optional_text`); a blank source value is ``None``.
+    Contacts deliberately skip :func:`_normalise_name`'s smart-quote
+    translation, which exists for institution titles alone.
+    """
+
     external_id: str
     name: str
     source_url: str
     address: str | None
     district_code: DistrictCode
+    phone: str | None = None
+    email: str | None = None
+    director: str | None = None
+    website: str | None = None
 
 
 async def fetch_jasla(client: httpx.AsyncClient) -> list[JaslaRecord]:
@@ -79,8 +91,12 @@ def parse_jasla_payload(raw: bytes) -> list[JaslaRecord]:
                 external_id=external_id,
                 name=_normalise_name(_required_text(record, "DZ_NAME")),
                 source_url=JASLA_LISTING_URL,
-                address=_normalise_address(record.get("ADDRESS")),
+                address=_normalise_optional_text(record.get("ADDRESS")),
                 district_code=_district_code(record),
+                phone=_normalise_optional_text(record.get("TEL")),
+                email=_normalise_optional_text(record.get("EMAIL")),
+                director=_normalise_optional_text(record.get("NAME_D")),
+                website=_normalise_optional_text(record.get("WEBSITE")),
             )
         )
 
@@ -116,11 +132,17 @@ def _normalise_name(value: str) -> str:
     return re.sub(r'\s+"(?=\s|$)', '"', name)
 
 
-def _normalise_address(value: Any) -> str | None:
+def _normalise_optional_text(value: Any) -> str | None:
+    """Collapse whitespace; ``None`` or blank becomes ``None``, never ``""``.
+
+    Unlike :func:`_required_text` this never raises — contacts and the address
+    are optional. The ``None`` guard precedes ``str()`` because ``str(None)``
+    is the non-empty string ``"None"``.
+    """
     if value is None:
         return None
-    address = _collapse_ws(str(value))
-    return address or None
+    text = _collapse_ws(str(value))
+    return text or None
 
 
 def _district_code(record: dict[str, Any]) -> DistrictCode:
