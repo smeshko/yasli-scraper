@@ -1,6 +1,6 @@
 # Epic 01 — Snapshot contact metadata
 
-Status: planned
+Status: done
 Created: 2026-08-17
 Depends on: backend epic 01, phase 1.1 (merged **and deployed**)
 Project: institution-profiles
@@ -38,7 +38,7 @@ the snapshot outright.
 
 ## Phase 1.1 — Emit contact metadata in the snapshot
 
-**Plan**: [scraper-contact-metadata](../plans/scraper-contact-metadata/PLAN.md) · status: in-progress
+**Plan**: [scraper-contact-metadata](../plans/scraper-contact-metadata/PLAN.md) · status: done
 
 **Linear**: YAS-10 (https://linear.app/ivo-tsonev/issue/YAS-10)
 
@@ -54,11 +54,11 @@ the snapshot outright.
 
 ### Acceptance criteria
 
-- [ ] A live `just sc-refresh` produces a snapshot where all 77 institutions carry `phone`, `email` and `director`, and the 12 preschools carry `website`
-- [ ] `schema_version` is still `2` and the committed schema artifact matches the models
-- [ ] Whitespace, tab and slash quirks documented in research §1 are handled — no field contains a leading/trailing space or a `\r`
-- [ ] Institutions whose source row omits a field serialise it as `null`, not `""`
-- [ ] `just sc-test` and `just sc-lint` pass
+- [x] A live `just sc-refresh` produces a snapshot where all 77 institutions carry `phone`, `email` and `director`, and the 12 preschools carry `website`
+- [x] `schema_version` is still `2` and the committed schema artifact matches the models
+- [x] Whitespace, tab and slash quirks documented in research §1 are handled — no field contains a leading/trailing space or a `\r`
+- [x] Institutions whose source row omits a field serialise it as `null`, not `""`
+- [x] `just sc-test` and `just sc-lint` pass
 
 ### Validation
 
@@ -70,6 +70,6 @@ Run `just sc-refresh` and then `just be-ingest`, and show a query listing five i
 
 ## Epic-level acceptance criteria
 
-- [ ] Every phase merged and its acceptance criteria met
-- [ ] The production snapshot carries contact metadata and the backend ingests it without error
-- [ ] Status row in [EPICS.md](./EPICS.md) updated to `Done`
+- [x] Every phase merged and its acceptance criteria met
+- [x] The production snapshot carries contact metadata and the backend ingests it without error
+- [x] Status row in [EPICS.md](./EPICS.md) updated to `Done`

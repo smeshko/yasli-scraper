@@ -19,7 +19,7 @@ small-to-medium pull request and maps to exactly one plan under
 
 | # | Epic | Phases | Dependencies | Status |
 |---|------|--------|--------------|--------|
-| 1 | [Snapshot contact metadata](./01-contact-metadata.md) | 1 | backend epic 01, phase 1.1 (done) | Ready for dev |
+| 1 | [Snapshot contact metadata](./01-contact-metadata.md) | 1 | backend epic 01, phase 1.1 (done) | Done |
 
 ## Other repos
 
