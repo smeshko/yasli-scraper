@@ -38,6 +38,10 @@ drifts from what the models emit.
 | `source_url`      | HTTPS URL                                           | Page on the source portal that originated this institution. |
 | `address_entries` | array of `AddressEntry` (possibly empty)            | One entry per street/number row. |
 | `address`         | non-empty string or `null`                          | Physical institution address when the source exposes it; whitespace is trimmed/collapsed only. |
+| `phone`           | non-empty string or `null`                          | Free-form `TEL` from the source. May pack several numbers into one cell — kept verbatim with their separators (`052/613039`, `0885/665-940 052/820-764`); only whitespace is collapsed. No canonical phone format is imposed. |
+| `email`           | non-empty string or `null`                          | `EMAIL` from the source, whitespace-collapsed. Passed through as given — some preschools publish their website URL in this cell. |
+| `director`        | non-empty string or `null`                          | The director's name (`NAME_D`), whitespace-collapsed. |
+| `website`         | non-empty string or `null`                          | `WEBSITE` from the source with its stray `\r\r\n` tail stripped. Populated only for `preschool` rows today; `null` for kindergartens and nurseries. |
 | `district_code`   | one of `"01"`–`"05"` or `null`                      | Varna district code. Required by validation for `kind="nursery"`; permitted for all kinds. |
 | `has_infant_group` | boolean                                            | `true` for kindergartens whose DG name includes the `/ с яслена група/` marker; standalone nurseries and preschools are always `false`. |
 
@@ -57,6 +61,11 @@ drifts from what the models emit.
   construction and serialisation.
 - Validation is implicit: constructing `Snapshot(...)` enforces every
   constraint above. There is no separate `validate_snapshot()` step.
+- `address`, `phone`, `email`, `director` and `website` are normalised on
+  the way in: runs of whitespace (spaces, tabs, `\r`/`\n`) collapse to one
+  space and a blank source value becomes `null`. A field that is absent from
+  the source row is still emitted, as `null` — the key is never omitted and
+  the value is never `""`.
 - The scraper does not normalise street / number. Any canonicalisation is
   the backend's job during ingest.
 - Standalone nursery rows have no source catchment streets today, so their

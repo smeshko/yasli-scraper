@@ -143,5 +143,5 @@ Task state lives here. Tasks are appended by `scripts/add_task.py` and
 - [x] TASK-001: Carry contacts through the dg.uslugi.io metadata client
 - [x] TASK-002: Carry contacts through the jasla nursery client
 - [x] TASK-003: Add contact fields to the snapshot models and pipeline (depends on TASK-001, TASK-002)
-- [ ] TASK-004: Regenerate the v2 schema artifact and field table (depends on TASK-003)
+- [x] TASK-004: Regenerate the v2 schema artifact and field table (depends on TASK-003)
 - [ ] TASK-005: Final Validation
