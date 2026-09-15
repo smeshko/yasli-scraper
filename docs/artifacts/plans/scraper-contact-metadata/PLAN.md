@@ -1,6 +1,6 @@
 # Plan: Emit contact metadata in the snapshot
 
-Status: in-progress
+Status: done
 Branch: feature/yas-10-scraper-contact-metadata
 Risk: medium
 Epic: 01 — Snapshot contact metadata ([epic](../../epics/01-contact-metadata.md))
@@ -116,24 +116,24 @@ See [RESEARCH.md](./RESEARCH.md). The short version:
 
 ## Acceptance Criteria
 
-- [ ] A live `just sc-refresh` produces a snapshot where all 77 institutions
+- [x] A live `just sc-refresh` produces a snapshot where all 77 institutions
       carry a non-null `phone`, `email` and `director`, and the 12 preschools
       carry a non-null `website` (counts as measured 2026-08-17 and as
       `sc-snapshot-check` asserts; a different roster means the portal changed —
       stop and re-measure, do not tick)
-- [ ] `schema_version` is still `2` and the committed schema artifact matches
+- [x] `schema_version` is still `2` and the committed schema artifact matches
       the models (`tests/test_schema_artifact.py` passes)
-- [ ] None of the emitted `phone`, `email`, `director`, `website` or `address`
+- [x] None of the emitted `phone`, `email`, `director`, `website` or `address`
       values contains a leading/trailing space, a tab, or a `\r`; `street` and
       `number` keep their existing verbatim contract and are not asserted
-- [ ] Institutions whose source row omits a field serialise it as `null` — the
+- [x] Institutions whose source row omits a field serialise it as `null` — the
       key is present with a null value, never `""` and never omitted
-- [ ] The regenerated `schemas/snapshot.v2.schema.json` differs from the
+- [x] The regenerated `schemas/snapshot.v2.schema.json` differs from the
       backend's `tests/snapshot_contract/fixtures/snapshot.v2.schema.json` only
       by `"minItems": 1`
-- [ ] The longest observed `phone` value is recorded and fits the backend's
+- [x] The longest observed `phone` value is recorded and fits the backend's
       `String(128)` column
-- [ ] `just sc-test` and `just sc-lint` pass
+- [x] `just sc-test` and `just sc-lint` pass
 
 ## Tasks
 
@@ -144,4 +144,4 @@ Task state lives here. Tasks are appended by `scripts/add_task.py` and
 - [x] TASK-002: Carry contacts through the jasla nursery client
 - [x] TASK-003: Add contact fields to the snapshot models and pipeline (depends on TASK-001, TASK-002)
 - [x] TASK-004: Regenerate the v2 schema artifact and field table (depends on TASK-003)
-- [ ] TASK-005: Final Validation
+- [x] TASK-005: Final Validation
