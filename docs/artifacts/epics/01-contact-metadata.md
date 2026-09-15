@@ -38,7 +38,7 @@ the snapshot outright.
 
 ## Phase 1.1 — Emit contact metadata in the snapshot
 
-**Plan**: [scraper-contact-metadata](../plans/scraper-contact-metadata/PLAN.md) · status: planned
+**Plan**: [scraper-contact-metadata](../plans/scraper-contact-metadata/PLAN.md) · status: in-progress
 
 **Linear**: YAS-10 (https://linear.app/ivo-tsonev/issue/YAS-10)
 

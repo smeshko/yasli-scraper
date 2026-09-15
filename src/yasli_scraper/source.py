@@ -4,11 +4,12 @@ Wraps the two source-portal endpoints we depend on:
 
 * ``POST /lv/api/childhood-rajon`` returns the per-reception institution
   listing as JSON.
-* ``POST /lv/api/childhood`` returns per-reception institution metadata,
-  including the physical address.
+* ``POST /lv/api/childhood`` returns per-reception institution metadata:
+  the physical address plus the contact details (phone, e-mail, director,
+  website).
 * ``GET <RAJON URL>`` returns the per-institution windows-1251 HTML.
 
-Both calls go through :func:`yasli_scraper.http.fetch` so they inherit the
+All calls go through :func:`yasli_scraper.http.fetch` so they inherit the
 retry policy, Content-Length verification, and User-Agent header.
 """
 from __future__ import annotations
@@ -36,10 +37,20 @@ class InstitutionStub:
 
 @dataclass(frozen=True)
 class InstitutionMetadata:
-    """Metadata from `/lv/api/childhood` keyed by source institution id."""
+    """Metadata from `/lv/api/childhood` keyed by source institution id.
+
+    Every optional field is whitespace-normalised on the way in (see
+    :func:`_normalise_text`); a blank source value becomes ``None``. ``phone``
+    keeps every separator the source packs into ``TEL`` — slashes included —
+    so multiple numbers survive as the portal gives them.
+    """
 
     external_id: str
     address: str | None
+    phone: str | None = None
+    email: str | None = None
+    director: str | None = None
+    website: str | None = None
 
 
 async def fetch_regions(
@@ -78,7 +89,11 @@ async def fetch_institution_metadata(
     return {
         external_id: InstitutionMetadata(
             external_id=external_id,
-            address=_normalise_address(entry.get("ADDRESS")),
+            address=_normalise_text(entry.get("ADDRESS")),
+            phone=_normalise_text(entry.get("TEL")),
+            email=_normalise_text(entry.get("EMAIL")),
+            director=_normalise_text(entry.get("NAME_D")),
+            website=_normalise_text(entry.get("WEBSITE")),
         )
         for entry in entries
         if (external_id := str(entry.get("DZ_ID", "")).strip())
@@ -90,8 +105,15 @@ async def fetch_html(client: httpx.AsyncClient, url: str) -> bytes:
     return await fetch(client, "GET", url)
 
 
-def _normalise_address(value: object) -> str | None:
+def _normalise_text(value: object) -> str | None:
+    """Collapse whitespace to single spaces; ``None`` or blank becomes ``None``.
+
+    Bare ``str.split()`` splits on every whitespace character, so tabs, runs
+    of spaces and the ``\\r\\r\\n`` tails the source appends to ``WEBSITE`` all
+    collapse in one step. The ``None`` guard matters: ``str(None)`` is the
+    non-empty string ``"None"``, which would otherwise ship as a value.
+    """
     if value is None:
         return None
-    address = " ".join(str(value).split())
-    return address or None
+    text = " ".join(str(value).split())
+    return text or None
