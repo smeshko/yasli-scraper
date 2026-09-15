@@ -1,6 +1,7 @@
 """Validation regression tests for the v2 snapshot Pydantic models."""
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from typing import Any
 
@@ -8,6 +9,14 @@ import pytest
 from pydantic import ValidationError
 
 from yasli_scraper.models import AddressEntry, Institution, Snapshot
+
+CONTACT_FIELDS = ("phone", "email", "director", "website")
+CONTACTS = {
+    "phone": "052/613039",
+    "email": "info-400240@edu.mon.bg",
+    "director": "Катя Григорова",
+    "website": "https://ou-ivanrilski.com/",
+}
 
 
 def _valid_institution_kwargs() -> dict[str, Any]:
@@ -147,6 +156,36 @@ def test_address_may_be_null_but_not_empty() -> None:
     Institution(**(_valid_institution_kwargs() | {"address": None}))
     with pytest.raises(ValidationError, match="address"):
         Institution(**(_valid_institution_kwargs() | {"address": ""}))
+
+
+# --- 4.7 contact fields (additive, optional) ---
+
+def test_institution_without_contacts_defaults_them_to_none() -> None:
+    institution = Institution(**_valid_institution_kwargs())
+    assert {field: getattr(institution, field) for field in CONTACT_FIELDS} == {
+        field: None for field in CONTACT_FIELDS
+    }
+
+
+def test_institution_carries_contacts() -> None:
+    institution = Institution(**(_valid_institution_kwargs() | CONTACTS))
+    assert {field: getattr(institution, field) for field in CONTACT_FIELDS} == CONTACTS
+
+
+@pytest.mark.parametrize("field", CONTACT_FIELDS)
+def test_contact_may_be_null_but_not_empty(field: str) -> None:
+    Institution(**(_valid_institution_kwargs() | {field: None}))
+    with pytest.raises(ValidationError, match=field):
+        Institution(**(_valid_institution_kwargs() | {field: ""}))
+
+
+def test_contactless_institution_serialises_contact_keys_as_null() -> None:
+    """The keys must be present with a null value — never omitted, never ""."""
+    payload = json.loads(Snapshot(**_valid_snapshot_kwargs()).model_dump_json())
+    institution = payload["institutions"][0]
+    for field in CONTACT_FIELDS:
+        assert field in institution
+        assert institution[field] is None
 
 
 # --- 4.4 malformed datetime ---

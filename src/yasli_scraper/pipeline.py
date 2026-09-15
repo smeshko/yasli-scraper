@@ -45,6 +45,10 @@ KIND_BY_RECEPTION: dict[str, Kind] = {
 }
 INFANT_GROUP_MARKER = re.compile(r"/\s*с\s+яслена\s+група\s*/", re.IGNORECASE)
 _WHITESPACE = re.compile(r"\s+")
+# Optional strings that coalesce first-non-None-wins across the `garden` and
+# `infant` rows of one kindergarten. `_run_dg_branch` emits receptions in
+# PIPELINE_RECEPTIONS order, so on a genuine conflict `garden` wins.
+_FIRST_NON_NONE_FIELDS: tuple[str, ...] = ("address", "phone", "email", "director", "website")
 log = logging.getLogger(__name__)
 
 
@@ -63,6 +67,10 @@ class MergedInstitution:
     address_entries: list[AddressEntry]
     address_entry_keys: set[tuple[str, str]]
     address: str | None
+    phone: str | None
+    email: str | None
+    director: str | None
+    website: str | None
     district_code: DistrictCode | None
     has_infant_group: bool
 
@@ -158,7 +166,11 @@ async def _run_dg_branch(client: httpx.AsyncClient) -> DgBranchResult:
     for (reception, stub), html in zip(pairs, htmls, strict=True):
         external_id = _external_id_from_url(stub.source_url)
         metadata = metadata_by_reception.get(reception, {}).get(external_id)
-        address = metadata.address if metadata is not None else None
+        if metadata is None:
+            # No HTML fallback exists for contacts — the catchment page does
+            # not carry them — so a missing row simply yields None for each.
+            metadata = InstitutionMetadata(external_id=external_id, address=None)
+        address = metadata.address
         if address is None:
             address = parse_institution_address_html(html)
         if address is None:
@@ -182,6 +194,10 @@ async def _run_dg_branch(client: httpx.AsyncClient) -> DgBranchResult:
                     AddressEntry(street=street, number=number) for street, number in rows
                 ],
                 address=address,
+                phone=metadata.phone,
+                email=metadata.email,
+                director=metadata.director,
+                website=metadata.website,
                 district_code=None,
                 has_infant_group=kind == "kindergarten" and has_marker,
             )
@@ -199,6 +215,10 @@ def _institutions_from_jasla(records: list[JaslaRecord]) -> list[Institution]:
             source_url=record.source_url,  # type: ignore[arg-type]
             address_entries=[],
             address=record.address,
+            phone=record.phone,
+            email=record.email,
+            director=record.director,
+            website=record.website,
             district_code=record.district_code,
             has_infant_group=False,
         )
@@ -228,13 +248,18 @@ def coalesce_institutions(institutions: list[Institution]) -> list[Institution]:
                 address_entries=entries,
                 address_entry_keys={(entry.street, entry.number) for entry in entries},
                 address=institution.address,
+                phone=institution.phone,
+                email=institution.email,
+                director=institution.director,
+                website=institution.website,
                 district_code=institution.district_code,
                 has_infant_group=institution.has_infant_group,
             )
             continue
 
-        if bucket.address is None and institution.address is not None:
-            bucket.address = institution.address
+        for field in _FIRST_NON_NONE_FIELDS:
+            if getattr(bucket, field) is None:
+                setattr(bucket, field, getattr(institution, field))
         bucket.has_infant_group = bucket.has_infant_group or institution.has_infant_group
         bucket.district_code = _compatible_district_code(
             bucket.district_code,
@@ -258,6 +283,10 @@ def coalesce_institutions(institutions: list[Institution]) -> list[Institution]:
             source_url=bucket.source_url,  # type: ignore[arg-type]
             address_entries=bucket.address_entries,
             address=bucket.address,
+            phone=bucket.phone,
+            email=bucket.email,
+            director=bucket.director,
+            website=bucket.website,
             district_code=bucket.district_code,
             has_infant_group=bucket.has_infant_group,
         )

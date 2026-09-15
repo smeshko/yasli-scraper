@@ -14,6 +14,7 @@ from pydantic import (
     ConfigDict,
     Field,
     HttpUrl,
+    ValidationInfo,
     field_validator,
     field_serializer,
     model_validator,
@@ -49,14 +50,20 @@ class Institution(BaseModel):
     source_url: HttpsUrl
     address_entries: list[AddressEntry]
     address: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    director: str | None = None
+    website: str | None = None
     district_code: DistrictCode | None = None
     has_infant_group: bool
 
-    @field_validator("address")
+    @field_validator("address", "phone", "email", "director", "website")
     @classmethod
-    def _address_non_empty(cls, value: str | None) -> str | None:
+    def _optional_strings_non_empty(
+        cls, value: str | None, info: ValidationInfo
+    ) -> str | None:
         if value == "":
-            raise ValueError("address must be non-empty or null")
+            raise ValueError(f"{info.field_name} must be non-empty or null")
         return value
 
     @model_validator(mode="after")
