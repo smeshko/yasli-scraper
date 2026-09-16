@@ -326,7 +326,9 @@ def _file_deep_city(tmp_path: Path) -> Path:
     text = json.dumps(_snapshot_dict(), ensure_ascii=False)
     assert text.count('"city": "varna"') == 1
     path = tmp_path / "snapshot.json"
-    path.write_text(text.replace('"city": "varna"', '"city": ' + "[" * 1500 + "]" * 1500))
+    path.write_text(
+        text.replace('"city": "varna"', '"city": ' + "[" * 1500 + "]" * 1500), encoding="utf-8"
+    )
     return path
 
 
@@ -412,7 +414,7 @@ def test_check_summary_stays_valid_json_for_a_non_finite_schema_version(
     text = json.dumps(_snapshot_dict(), ensure_ascii=False)
     assert text.count('"schema_version": 2') == 1
     path = tmp_path / "snapshot.json"
-    path.write_text(text.replace('"schema_version": 2', '"schema_version": 1e400'))
+    path.write_text(text.replace('"schema_version": 2', '"schema_version": 1e400'), encoding="utf-8")
 
     rc = main(["check", str(path)])
 
