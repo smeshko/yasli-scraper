@@ -215,6 +215,15 @@ def test_non_object_row_is_a_contract_failure_and_summary_still_counts() -> None
     assert report.summary["total"] == 77
 
 
+def test_lone_surrogate_escape_is_a_contract_failure_and_rows_are_still_checked() -> None:
+    """json.loads accepts a lone "\\ud800" escape; the contract parser rejects it."""
+    raw = json.dumps(_snapshot(city="\ud800")).encode("utf-8")  # ensure_ascii keeps the escape
+    report = check_snapshot(raw)
+    assert any("Invalid JSON" in f for f in _with_prefix(report.failures, "contract:"))
+    assert _with_prefix(report.failures, "city:")
+    assert report.summary["total"] == 77
+
+
 # --- non-string leaves that would otherwise become keys ---
 
 def test_non_string_city_is_reported_unknown() -> None:
@@ -264,12 +273,28 @@ def _schema_version_3(snapshot: dict[str, Any]) -> None:
     snapshot["schema_version"] = 3
 
 
+def _schema_version_string(snapshot: dict[str, Any]) -> None:
+    snapshot["schema_version"] = "2"
+
+
+def _string_infant_flag(snapshot: dict[str, Any]) -> None:
+    snapshot["institutions"][0]["has_infant_group"] = "true"
+
+
+def _int_infant_flag(snapshot: dict[str, Any]) -> None:
+    snapshot["institutions"][0]["has_infant_group"] = 1
+
+
 @pytest.mark.parametrize(
     ("mutate", "field"),
     [
         pytest.param(_empty_phone, "phone", id="empty-phone"),
         pytest.param(_extra_key, "bogus", id="extra-key"),
         pytest.param(_schema_version_3, "schema_version", id="schema-3"),
+        # Lax coercions run never writes: the contract is the model's declared types.
+        pytest.param(_schema_version_string, "schema_version", id="schema-string"),
+        pytest.param(_string_infant_flag, "has_infant_group", id="string-bool"),
+        pytest.param(_int_infant_flag, "has_infant_group", id="int-bool"),
     ],
 )
 def test_contract_violation_is_prefixed(

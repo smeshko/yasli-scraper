@@ -107,14 +107,14 @@ def check_snapshot(raw: bytes, expected_city: str | None = None) -> CheckReport:
     # Shape guard: the row checks need an object root holding a list of rows.
     # Anything else is left to the model to describe as a contract failure.
     if not isinstance(payload, dict):
-        return CheckReport(_summary(None, []), _contract_failures(payload))
+        return CheckReport(_summary(None, []), _contract_failures(text))
     institutions = payload.get("institutions")
     if not isinstance(institutions, list):
-        return CheckReport(_summary(payload, []), _contract_failures(payload))
+        return CheckReport(_summary(payload, []), _contract_failures(text))
 
     # Only object rows feed the checks; the model names the others.
     rows: list[Row] = [(i, r) for i, r in enumerate(institutions) if isinstance(r, dict)]
-    failures = _contract_failures(payload)
+    failures = _contract_failures(text)
     roster = _resolve_roster(payload.get("city"), expected_city, failures)
     _check_key_presence(rows, failures)
     _check_roster(rows, roster, failures)
@@ -129,9 +129,13 @@ def _reject_non_finite(name: str) -> Any:
     raise ValueError(f"non-finite number {name} is not valid JSON")
 
 
-def _contract_failures(payload: Any) -> list[str]:
+def _contract_failures(text: str) -> list[str]:
+    # JSON-mode strict validation: the model's declared types with none of the
+    # lax coercions ("true" -> bool, "2" -> 2) that ``run`` never writes.
+    # Python-mode strict would reject the ISO ``scraped_at`` string; JSON mode
+    # accepts it.
     try:
-        Snapshot.model_validate(payload)
+        Snapshot.model_validate_json(text, strict=True)
     except ValidationError as exc:
         return [
             f"contract: {'.'.join(str(p) for p in err['loc']) or 'root'}: {err['msg']}"
