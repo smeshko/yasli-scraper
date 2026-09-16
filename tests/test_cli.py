@@ -322,6 +322,14 @@ def _file_newline_id(tmp_path: Path) -> Path:
     return _write_mutated(tmp_path, _newline_id_without_phone)
 
 
+def _file_deep_city(tmp_path: Path) -> Path:
+    text = json.dumps(_snapshot_dict(), ensure_ascii=False)
+    assert text.count('"city": "varna"') == 1
+    path = tmp_path / "snapshot.json"
+    path.write_text(text.replace('"city": "varna"', '"city": ' + "[" * 1500 + "]" * 1500))
+    return path
+
+
 def _file_valid(tmp_path: Path) -> Path:
     return _write_mutated(tmp_path, _unchanged)
 
@@ -372,6 +380,7 @@ def test_check_prints_summary_without_ascii_escaping(
         pytest.param(_file_deeply_nested, [], ("unusable JSON",), id="deeply-nested"),
         pytest.param(_file_valid, ["--city", "sofia"], ("varna", "sofia"), id="city-mismatch"),
         pytest.param(_file_newline_id, [], ("kindergarten/a\\nb",), id="newline-in-id"),
+        pytest.param(_file_deep_city, [], ("city:",), id="deep-city"),
     ],
 )
 def test_check_failure_exits_one_with_summary_and_one_line_per_failure(
@@ -395,6 +404,22 @@ def test_check_failure_exits_one_with_summary_and_one_line_per_failure(
     assert len(lines) == len(report.failures)
     assert all(line.startswith("check failed: ") for line in lines)
     assert any(all(fragment in line for fragment in expected) for line in lines)
+
+
+def test_check_summary_stays_valid_json_for_a_non_finite_schema_version(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    text = json.dumps(_snapshot_dict(), ensure_ascii=False)
+    assert text.count('"schema_version": 2') == 1
+    path = tmp_path / "snapshot.json"
+    path.write_text(text.replace('"schema_version": 2', '"schema_version": 1e400'))
+
+    rc = main(["check", str(path)])
+
+    out, _ = capsys.readouterr()
+    assert rc == 1
+    assert "Infinity" not in out
+    assert json.loads(out)["schema_version"] is None
 
 
 def test_check_summary_survives_a_lone_surrogate_on_a_utf8_stdout(tmp_path: Path) -> None:

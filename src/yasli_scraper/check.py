@@ -15,6 +15,7 @@ roster or coverage defect. The module does no I/O.
 from __future__ import annotations
 
 import json
+import math
 import re
 from collections import Counter
 from dataclasses import dataclass, field
@@ -244,10 +245,11 @@ def _check_noise(rows: list[Row], failures: list[str]) -> None:
 
 def _summary(payload: dict[str, Any] | None, rows: list[Row]) -> dict[str, Any]:
     """Counts over the object rows; always computable, even when the contract fails."""
+    envelope = payload or {}
     phones = [r[1]["phone"] for r in rows if isinstance(r[1].get("phone"), str)]
     return {
-        "schema_version": payload.get("schema_version") if payload is not None else None,
-        "city": payload.get("city") if payload is not None else None,
+        "schema_version": _json_scalar(envelope.get("schema_version")),
+        "city": _json_scalar(envelope.get("city")),
         "total": len(rows),
         "kinds": _kind_counts(rows),
         "infant_group": sum(1 for r in rows if r[1].get("has_infant_group") is True),
@@ -259,6 +261,19 @@ def _summary(payload: dict[str, Any] | None, rows: list[Row]) -> dict[str, Any]:
         "noisy_values": len(_noisy_values(rows)),
         "max_phone_length": max((len(p) for p in phones), default=0),
     }
+
+
+def _json_scalar(value: Any) -> Any:
+    """Echo a file value into the summary only if json.dumps can always emit it.
+
+    A list nested a thousand deep parses but overflows the encoder in the CLI,
+    and ``1e400`` would print as ``Infinity``; the failure lines name them.
+    """
+    if value is None or isinstance(value, (str, bool, int)):
+        return value
+    if isinstance(value, float) and math.isfinite(value):
+        return value
+    return None
 
 
 def _kind_counts(rows: list[Row]) -> dict[str, int]:
