@@ -357,7 +357,10 @@ def test_null_address_names_seen_vs_expected() -> None:
     _first(rows, "kindergarten")["address"] = None
     report = check_snapshot(_raw(_snapshot(rows)))
     roster = _with_prefix(report.failures, "roster:")
-    assert any("1 institution" in f and "null address" in f and "expected 0" in f for f in roster)
+    assert any(
+        "1 institution" in f and "null or absent address" in f and "expected 0" in f
+        for f in roster
+    )
     assert report.summary["null_address"] == 1
 
 
@@ -405,8 +408,18 @@ def test_null_contact_reports_the_count(key: str) -> None:
     rows[1][key] = None
     report = check_snapshot(_raw(_snapshot(rows)))
     coverage = _with_prefix(report.failures, "coverage:")
-    assert any(f"null {key}" in f and "2 institution" in f for f in coverage)
+    assert any(f"null or absent {key}" in f and "2 institution" in f for f in coverage)
     assert report.summary[f"null_{key}"] == 2
+
+
+def test_absent_contact_key_is_worded_null_or_absent_in_coverage() -> None:
+    """Absent counts as missing (deliberate); the line must not call it null."""
+    rows = _varna_roster()
+    del _first(rows, "nursery")["email"]
+    report = check_snapshot(_raw(_snapshot(rows)))
+    coverage = _with_prefix(report.failures, "coverage:")
+    assert any("null or absent email" in f and "nursery/1" in f for f in coverage)
+    assert not any(" with null email" in f for f in coverage)
 
 
 def test_preschool_null_website_reports_the_count() -> None:
@@ -414,7 +427,7 @@ def test_preschool_null_website_reports_the_count() -> None:
     _first(rows, "preschool")["website"] = None
     report = check_snapshot(_raw(_snapshot(rows)))
     coverage = _with_prefix(report.failures, "coverage:")
-    assert any("null website" in f and "1 preschool" in f for f in coverage)
+    assert any("null or absent website" in f and "1 preschool" in f for f in coverage)
     assert report.summary["preschool_null_website"] == 1
 
 
@@ -480,5 +493,5 @@ def test_several_problems_are_all_reported_in_one_call() -> None:
     report = check_snapshot(_raw(snapshot))
     assert any("schema_version" in f for f in _with_prefix(report.failures, "contract:"))
     assert any("11 nursery" in f for f in _with_prefix(report.failures, "roster:"))
-    assert any("null director" in f for f in _with_prefix(report.failures, "coverage:"))
+    assert any("null or absent director" in f for f in _with_prefix(report.failures, "coverage:"))
     assert report.summary["total"] == 76
