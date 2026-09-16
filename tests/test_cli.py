@@ -298,6 +298,12 @@ def _file_invalid_utf8(tmp_path: Path) -> Path:
     return path
 
 
+def _file_deeply_nested(tmp_path: Path) -> Path:
+    path = tmp_path / "snapshot.json"
+    path.write_bytes(b"[" * 100_000)
+    return path
+
+
 def _file_valid(tmp_path: Path) -> Path:
     return _write_mutated(tmp_path, _unchanged)
 
@@ -344,6 +350,7 @@ def test_check_prints_summary_without_ascii_escaping(
         pytest.param(_file_wrong_nursery_count, [], ("11 nursery",), id="wrong-nursery-count"),
         pytest.param(_file_malformed_shape, [], ("contract:",), id="malformed-shape"),
         pytest.param(_file_invalid_utf8, [], ("invalid UTF-8",), id="invalid-utf8"),
+        pytest.param(_file_deeply_nested, [], ("unusable JSON",), id="deeply-nested"),
         pytest.param(_file_valid, ["--city", "sofia"], ("varna", "sofia"), id="city-mismatch"),
     ],
 )

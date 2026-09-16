@@ -88,11 +88,16 @@ def check_snapshot(raw: bytes, expected_city: str | None = None) -> CheckReport:
     override it. The roster is always selected by the file's own value.
     """
     try:
-        payload = json.loads(raw)
+        payload = json.loads(raw, parse_constant=_reject_non_finite)
     except UnicodeDecodeError as exc:
         return CheckReport(_summary(None, []), [f"parse: invalid UTF-8: {exc}"])
     except json.JSONDecodeError as exc:
         return CheckReport(_summary(None, []), [f"parse: invalid JSON: {exc}"])
+    except (ValueError, RecursionError) as exc:
+        # json.loads also raises a plain ValueError (an int beyond the 4300-digit
+        # conversion limit, a NaN/Infinity constant) and RecursionError (nesting
+        # deeper than the interpreter allows). None of those is a snapshot.
+        return CheckReport(_summary(None, []), [f"parse: unusable JSON: {exc}"])
 
     # Shape guard: the row checks need an object root holding a list of rows.
     # Anything else is left to the model to describe as a contract failure.
@@ -111,6 +116,12 @@ def check_snapshot(raw: bytes, expected_city: str | None = None) -> CheckReport:
     _check_coverage(rows, failures)
     _check_noise(rows, failures)
     return CheckReport(_summary(payload, rows), failures)
+
+
+def _reject_non_finite(name: str) -> Any:
+    # NaN/Infinity are not JSON (RFC 8259); ``run`` never writes them and the
+    # stdout summary must stay valid JSON, so they fail the parse instead.
+    raise ValueError(f"non-finite number {name} is not valid JSON")
 
 
 def _contract_failures(payload: Any) -> list[str]:
