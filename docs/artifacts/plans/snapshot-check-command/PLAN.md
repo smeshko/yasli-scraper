@@ -1,6 +1,6 @@
 # Plan: Snapshot check command
 
-Status: in-progress
+Status: done
 Branch: feature/yas-16-snapshot-check-command
 Risk: medium
 Epic: none
@@ -153,7 +153,7 @@ See [RESEARCH.md](./RESEARCH.md). The short version:
 
 ## Acceptance Criteria
 
-- [ ] `uv run python -m yasli_scraper check --city varna <latest.json>` on the
+- [x] `uv run python -m yasli_scraper check --city varna <latest.json>` on the
       currently published snapshot exits 0, prints nothing on stderr, and
       prints a summary whose roster invariants hold: 12 nurseries, 53
       kindergartens, 12 preschools (`total` 77 follows from the table), zero
@@ -161,7 +161,7 @@ See [RESEARCH.md](./RESEARCH.md). The short version:
       `website`, zero noisy values. `max_phone_length` is reported, not
       asserted (the live object is overwritten by every scrape; the value
       observed on 2026-09-15 is in RESEARCH.md for reference)
-- [ ] `check_snapshot` reports a failure naming the problem for each of these
+- [x] `check_snapshot` reports a failure naming the problem for each of these
       mutations of a valid snapshot (`tests/test_check.py`, one test per
       mutation): a missing contact key; a null `phone`, `email` or `director`;
       a `preschool` with null `website`; a tab, `\r` or leading/trailing space
@@ -175,18 +175,18 @@ See [RESEARCH.md](./RESEARCH.md). The short version:
       `expected_city` that differs from the file's city — plus a
       contract error combined with a roster error reports both, and the exact
       summary values of the synthetic valid fixture are asserted there too
-- [ ] The CLI exits 1 and prints one `check failed: …` line per failure,
+- [x] The CLI exits 1 and prints one `check failed: …` line per failure,
       naming the problem, for a parametrised sample of those mutations
       (`tests/test_cli.py`: missing contact key, null `phone`, wrong nursery
       count, malformed shape, invalid UTF-8, `--city sofia` on a Varna file),
       and exits 0 with an empty stderr for the valid fixture with and without
       `--city varna`
-- [ ] The CLI exits 1 with a single `error: …` line naming the path, and no
+- [x] The CLI exits 1 with a single `error: …` line naming the path, and no
       traceback, for a missing path and for an unreadable path (a directory)
-- [ ] `just sc-snapshot-check <file>` in the parent justfile delegates to the
+- [x] `just sc-snapshot-check <file>` in the parent justfile delegates to the
       command and reproduces the pass and one fail case above
-- [ ] The scraper README documents the command and the recipe body
-- [ ] `just sc-test` and `just sc-lint` pass, with `check.py` covered by
+- [x] The scraper README documents the command and the recipe body
+- [x] `just sc-test` and `just sc-lint` pass, with `check.py` covered by
       `tests/test_check.py` and the subcommand by `tests/test_cli.py`
 
 ## Tasks
@@ -197,4 +197,4 @@ Task state lives here. Tasks are appended by `scripts/add_task.py` and
 - [x] TASK-001: Add the snapshot check module
 - [x] TASK-002: Wire the check subcommand into the CLI (depends on TASK-001)
 - [x] TASK-003: Document the command and point the justfile at it (depends on TASK-002)
-- [ ] TASK-004: Final Validation
+- [x] TASK-004: Final Validation
