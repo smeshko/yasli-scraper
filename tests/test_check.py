@@ -146,6 +146,26 @@ def test_invalid_utf8_is_one_failure() -> None:
     assert not report.ok
 
 
+@pytest.mark.parametrize(
+    ("raw", "fragment"),
+    [
+        pytest.param(b"[" * 100_000, "recursion", id="deeply-nested"),
+        pytest.param(b'{"schema_version": ' + b"9" * 5000 + b"}", "4300 digits", id="huge-int"),
+        pytest.param(b'{"schema_version": NaN}', "NaN", id="nan"),
+        pytest.param(b'{"schema_version": -Infinity}', "Infinity", id="infinity"),
+    ],
+)
+def test_unloadable_json_is_one_parse_failure_not_an_exception(
+    raw: bytes, fragment: str
+) -> None:
+    """json.loads raises more than JSONDecodeError; every load failure is a parse: line."""
+    report = check_snapshot(raw)
+    assert len(report.failures) == 1
+    assert report.failures[0].startswith("parse: unusable JSON:")
+    assert fragment in report.failures[0]
+    assert report.summary["total"] == 0
+
+
 # --- structurally malformed input ---
 
 def _without_institutions() -> dict[str, Any]:
