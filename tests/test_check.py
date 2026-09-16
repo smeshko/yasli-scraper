@@ -224,6 +224,29 @@ def test_lone_surrogate_escape_is_a_contract_failure_and_rows_are_still_checked(
     assert report.summary["total"] == 77
 
 
+# --- the summary echoes only what json.dumps can always emit ---
+
+def _with_city_json(city_json: bytes) -> bytes:
+    raw = _raw(_snapshot())
+    assert raw.count(b'"city": "varna"') == 1
+    return raw.replace(b'"city": "varna"', b'"city": ' + city_json)
+
+
+def test_summary_drops_a_nested_city_the_encoder_could_not_emit() -> None:
+    report = check_snapshot(_with_city_json(b"[" * 1500 + b"]" * 1500))
+    assert report.summary["city"] is None
+    assert _with_prefix(report.failures, "city:")
+    json.dumps(report.summary, indent=2)  # the CLI's encoder must not recurse
+
+
+def test_summary_drops_a_non_finite_schema_version() -> None:
+    raw = _raw(_snapshot()).replace(b'"schema_version": 2', b'"schema_version": 1e400')
+    report = check_snapshot(raw)
+    assert report.summary["schema_version"] is None
+    assert any("schema_version" in f for f in _with_prefix(report.failures, "contract:"))
+    json.dumps(report.summary, allow_nan=False)
+
+
 # --- non-string leaves that would otherwise become keys ---
 
 def test_non_string_city_is_reported_unknown() -> None:
