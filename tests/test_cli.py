@@ -274,6 +274,12 @@ def _null_institutions(payload: dict[str, Any]) -> None:
     payload["institutions"] = None
 
 
+def _newline_id_without_phone(payload: dict[str, Any]) -> None:
+    row = payload["institutions"][12]  # the first kindergarten
+    row["external_id"] = "a\nb"
+    del row["phone"]
+
+
 def _unchanged(payload: dict[str, Any]) -> None:
     pass
 
@@ -310,6 +316,10 @@ def _file_deeply_nested(tmp_path: Path) -> Path:
     path = tmp_path / "snapshot.json"
     path.write_bytes(b"[" * 100_000)
     return path
+
+
+def _file_newline_id(tmp_path: Path) -> Path:
+    return _write_mutated(tmp_path, _newline_id_without_phone)
 
 
 def _file_valid(tmp_path: Path) -> Path:
@@ -361,6 +371,7 @@ def test_check_prints_summary_without_ascii_escaping(
         pytest.param(_file_utf16, [], ("invalid UTF-8",), id="utf16"),
         pytest.param(_file_deeply_nested, [], ("unusable JSON",), id="deeply-nested"),
         pytest.param(_file_valid, ["--city", "sofia"], ("varna", "sofia"), id="city-mismatch"),
+        pytest.param(_file_newline_id, [], ("kindergarten/a\\nb",), id="newline-in-id"),
     ],
 )
 def test_check_failure_exits_one_with_summary_and_one_line_per_failure(
