@@ -248,6 +248,38 @@ def test_non_string_external_id_is_left_out_of_identity() -> None:
     assert not any("duplicate" in f for f in report.failures)
 
 
+# --- labels ---
+
+def test_control_characters_in_identity_keep_each_failure_on_one_line() -> None:
+    rows = _varna_roster()
+    row = _first(rows, "kindergarten")
+    row["external_id"] = "a\nb"
+    del row["phone"]
+    report = check_snapshot(_raw(_snapshot(rows)))
+    assert report.failures
+    assert all("\n" not in f and "\r" not in f for f in report.failures)
+    assert any("kindergarten/a\\nb" in f for f in _with_prefix(report.failures, "keys:"))
+
+
+def test_row_without_string_identity_is_labelled_by_index() -> None:
+    rows = _varna_roster()
+    rows[3]["external_id"] = 7
+    del rows[3]["phone"]
+    report = check_snapshot(_raw(_snapshot(rows)))
+    assert any("row[3]" in f for f in _with_prefix(report.failures, "keys:"))
+
+
+def test_listed_offenders_are_truncated_after_five() -> None:
+    rows = _varna_roster()
+    for row in rows[:7]:  # nurseries 1..7
+        del row["phone"]
+    report = check_snapshot(_raw(_snapshot(rows)))
+    line = next(f for f in _with_prefix(report.failures, "keys:") if "phone" in f)
+    assert "7 institution(s)" in line
+    assert "nursery/5" in line and "nursery/6" not in line
+    assert line.endswith("(+2 more)")
+
+
 # --- key presence on the raw rows ---
 
 @pytest.mark.parametrize("key", CONTACT_FIELDS)

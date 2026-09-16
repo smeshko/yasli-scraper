@@ -138,7 +138,9 @@ def _contract_failures(text: str) -> list[str]:
         Snapshot.model_validate_json(text, strict=True)
     except ValidationError as exc:
         return [
-            f"contract: {'.'.join(str(p) for p in err['loc']) or 'root'}: {err['msg']}"
+            _printable(
+                f"contract: {'.'.join(str(p) for p in err['loc']) or 'root'}: {err['msg']}"
+            )
             for err in exc.errors()
         ]
     return []
@@ -184,7 +186,7 @@ def _check_roster(
     for (kind, external_id), count in sorted(identities.items()):
         if count > 1:
             failures.append(
-                f"roster: duplicate (kind, external_id) {kind}/{external_id} "
+                f"roster: duplicate (kind, external_id) {_printable(f'{kind}/{external_id}')} "
                 f"appears {count} times"
             )
 
@@ -288,8 +290,17 @@ def _has_string_identity(row: Row) -> bool:
 def _label(row: Row) -> str:
     index, data = row
     if _has_string_identity(row):
-        return f"{data['kind']}/{data['external_id']}"
+        return _printable(f"{data['kind']}/{data['external_id']}")
     return f"row[{index}]"
+
+
+def _printable(text: str) -> str:
+    """Escape control and other non-printable characters so a failure stays one line.
+
+    The contract only requires ``external_id`` to be non-empty, so a newline in
+    it would otherwise split one ``check failed:`` line into two.
+    """
+    return "".join(ch if ch == " " or ch.isprintable() else repr(ch)[1:-1] for ch in text)
 
 
 def _listed(rows: list[Row]) -> str:
