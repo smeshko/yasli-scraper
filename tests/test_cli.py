@@ -445,7 +445,8 @@ def test_check_summary_survives_a_lone_surrogate_on_a_utf8_stdout(tmp_path: Path
 
 
 def test_check_summary_survives_a_non_ascii_city_on_an_ascii_stdout(tmp_path: Path) -> None:
-    payload = _snapshot_dict() | {"city": "варна"}
+    """Cyrillic and an astral emoji: the fallback must be JSON escapes, not \\UXXXXXXXX."""
+    payload = _snapshot_dict() | {"city": "варна\U0001f642"}
     path = tmp_path / "snapshot.json"
     path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
 
@@ -458,7 +459,7 @@ def test_check_summary_survives_a_non_ascii_city_on_an_ascii_stdout(tmp_path: Pa
 
     assert proc.returncode == 1
     assert b"Traceback" not in proc.stderr
-    assert json.loads(proc.stdout.decode("ascii"))["city"] == "варна"
+    assert json.loads(proc.stdout.decode("ascii"))["city"] == "варна\U0001f642"
     assert any(line.startswith(b"check failed: city:") for line in proc.stderr.splitlines())
 
 
