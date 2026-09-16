@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
+import sys
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
@@ -382,6 +384,28 @@ def test_check_failure_exits_one_with_summary_and_one_line_per_failure(
     assert len(lines) == len(report.failures)
     assert all(line.startswith("check failed: ") for line in lines)
     assert any(all(fragment in line for fragment in expected) for line in lines)
+
+
+def test_check_summary_survives_a_lone_surrogate_on_a_utf8_stdout(tmp_path: Path) -> None:
+    """A "\\ud800" escape parses to a lone surrogate that a UTF-8 stdout cannot encode.
+
+    capsys never encodes, so this runs the real interpreter with a strict stdout.
+    """
+    payload = _snapshot_dict() | {"city": "\ud800"}
+    path = tmp_path / "snapshot.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")  # ensure_ascii keeps the escape
+
+    proc = subprocess.run(
+        [sys.executable, "-m", "yasli_scraper", "check", str(path)],
+        capture_output=True,
+        env={**os.environ, "PYTHONIOENCODING": "utf-8:strict"},
+        timeout=60,
+    )
+
+    assert proc.returncode == 1
+    assert b"Traceback" not in proc.stderr
+    assert json.loads(proc.stdout.decode("utf-8"))["city"] == "\ud800"
+    assert any(line.startswith(b"check failed: city:") for line in proc.stderr.splitlines())
 
 
 def test_check_missing_path_exits_one_with_a_single_error_line(

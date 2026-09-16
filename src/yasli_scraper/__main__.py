@@ -86,7 +86,11 @@ def _run_check(path: Path, expected_city: str | None) -> int:
         return 1
 
     report = check_snapshot(data, expected_city=expected_city)
-    print(json.dumps(report.summary, ensure_ascii=False, indent=2))
+    summary = json.dumps(report.summary, ensure_ascii=False, indent=2)
+    # A "\ud800" escape in the file parses to a lone surrogate that a UTF-8
+    # stdout cannot encode; escape it rather than let print() raise after the
+    # checks already ran. stderr escapes unencodable characters by default.
+    print(summary.encode("utf-8", "backslashreplace").decode("utf-8"))
     for failure in report.failures:
         print(f"check failed: {failure}", file=sys.stderr)
     return 0 if report.ok else 1
