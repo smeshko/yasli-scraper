@@ -444,6 +444,24 @@ def test_check_summary_survives_a_lone_surrogate_on_a_utf8_stdout(tmp_path: Path
     assert any(line.startswith(b"check failed: city:") for line in proc.stderr.splitlines())
 
 
+def test_check_summary_survives_a_non_ascii_city_on_an_ascii_stdout(tmp_path: Path) -> None:
+    payload = _snapshot_dict() | {"city": "варна"}
+    path = tmp_path / "snapshot.json"
+    path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+    proc = subprocess.run(
+        [sys.executable, "-m", "yasli_scraper", "check", str(path)],
+        capture_output=True,
+        env={**os.environ, "PYTHONIOENCODING": "ascii"},
+        timeout=60,
+    )
+
+    assert proc.returncode == 1
+    assert b"Traceback" not in proc.stderr
+    assert json.loads(proc.stdout.decode("ascii"))["city"] == "варна"
+    assert any(line.startswith(b"check failed: city:") for line in proc.stderr.splitlines())
+
+
 def test_check_missing_path_exits_one_with_a_single_error_line(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
