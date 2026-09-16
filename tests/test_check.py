@@ -159,6 +159,7 @@ def test_utf8_bom_is_rejected_as_invalid_json() -> None:
     assert len(report.failures) == 1
     assert report.failures[0].startswith("parse: invalid JSON:")
     assert "BOM" in report.failures[0]
+    assert "plain UTF-8" in report.failures[0]
 
 
 @pytest.mark.parametrize(

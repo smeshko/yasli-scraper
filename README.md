@@ -36,7 +36,7 @@ It prints a summary object on stdout, then one `check failed: …` line per fail
 
 What is asserted:
 
-- **Contract** — the file validates against the `Snapshot` v2 model (`schema_version` 2, no extra keys, non-empty strings, nursery `district_code`). Unparseable or structurally malformed input is reported as a failure, not a traceback.
+- **Contract** — the file must be plain UTF-8 without a BOM (what `run` writes; UTF-16 or a BOM fails the parse) and validates against the `Snapshot` v2 model in strict mode (`schema_version` 2, no extra keys, non-empty strings, nursery `district_code`; types are not coerced, so `"2"` is not `2` and `"true"` is not `true`). Unparseable or structurally malformed input is reported as a failure, not a traceback.
 - **Key presence** — every institution carries all four contact keys (`phone`, `email`, `director`, `website`), even when null.
 - **Roster** — the per-city table `EXPECTED_ROSTER` in `src/yasli_scraper/check.py`: for Varna 12 nurseries, 53 kindergartens, 12 preschools, no null `address`, no duplicate `(kind, external_id)`, and the `Палечко` infant-group marker present with `has_infant_group: true`. The table is selected by the file's own `city`; an unknown city fails. When the portal roster changes, update that table.
 - **Contact coverage** — no null `phone`, `email` or `director` on any institution, and no preschool without a `website`.
