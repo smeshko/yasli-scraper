@@ -1,6 +1,6 @@
 # Plan: Snapshot check command
 
-Status: draft
+Status: in-progress
 Branch: feature/yas-16-snapshot-check-command
 Risk: medium
 Epic: none
@@ -194,7 +194,7 @@ See [RESEARCH.md](./RESEARCH.md). The short version:
 Task state lives here. Tasks are appended by `scripts/add_task.py` and
 `scripts/add_final_task.py`. Update the checkboxes as work progresses.
 
-- [ ] TASK-001: Add the snapshot check module
+- [x] TASK-001: Add the snapshot check module
 - [ ] TASK-002: Wire the check subcommand into the CLI (depends on TASK-001)
 - [ ] TASK-003: Document the command and point the justfile at it (depends on TASK-002)
 - [ ] TASK-004: Final Validation
