@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import os
 import sys
 from collections.abc import Sequence
 from pathlib import Path
 
 import dotenv
+
+from yasli_scraper.check import check_snapshot
 
 REQUIRED_ENV_VARS: tuple[str, ...] = (
     "R2_ACCOUNT_ID",
@@ -51,6 +54,16 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
 
+    check = subparsers.add_parser(
+        "check", help="Check a local snapshot file for publishability (no R2 access)."
+    )
+    check.add_argument("file", type=Path, help="Path to a snapshot JSON file.")
+    check.add_argument(
+        "--city",
+        default=None,
+        help="Assert the file's declared city (e.g. 'varna'); it does not override it.",
+    )
+
     return parser
 
 
@@ -64,11 +77,29 @@ def validate_env(env: dict[str, str] | None = None) -> str | None:
     return None
 
 
+def _run_check(path: Path, expected_city: str | None) -> int:
+    # Reads a local file only: no validate_env(), no R2.
+    try:
+        data = path.read_bytes()
+    except OSError as exc:
+        print(f"error: cannot read {path}: {exc.strerror or exc}", file=sys.stderr)
+        return 1
+
+    report = check_snapshot(data, expected_city=expected_city)
+    print(json.dumps(report.summary, ensure_ascii=False, indent=2))
+    for failure in report.failures:
+        print(f"check failed: {failure}", file=sys.stderr)
+    return 0 if report.ok else 1
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
     _load_repo_env()
+
+    if args.command == "check":
+        return _run_check(args.file, args.city)
 
     if args.command == "run":
         if args.out is not None:
