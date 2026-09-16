@@ -24,6 +24,35 @@ python -m yasli_scraper run --city varna
 
 The `--out PATH` flag bypasses R2 entirely.
 
+### Checking a snapshot
+
+`check` proves a local snapshot file is publishable. It reads the file only — no R2 access, no env vars:
+
+```bash
+python -m yasli_scraper check --city varna ./snap.json
+```
+
+It prints a summary object on stdout, then one `check failed: …` line per failure on stderr, and exits `0` when every check passes or `1` otherwise (argparse keeps `2` for usage errors). Every failure is reported in one run, and the summary is printed even when checks fail.
+
+What is asserted:
+
+- **Contract** — the file validates against the `Snapshot` v2 model (`schema_version` 2, no extra keys, non-empty strings, nursery `district_code`). Unparseable or structurally malformed input is reported as a failure, not a traceback.
+- **Key presence** — every institution carries all four contact keys (`phone`, `email`, `director`, `website`), even when null.
+- **Roster** — the per-city table `EXPECTED_ROSTER` in `src/yasli_scraper/check.py`: for Varna 12 nurseries, 53 kindergartens, 12 preschools, no null `address`, no duplicate `(kind, external_id)`, and the `Палечко` infant-group marker present with `has_infant_group: true`. The table is selected by the file's own `city`; an unknown city fails. When the portal roster changes, update that table.
+- **Contact coverage** — no null `phone`, `email` or `director` on any institution, and no preschool without a `website`.
+- **Noise** — no leading/trailing whitespace, tab or `\r` in `phone`, `email`, `director`, `website` or `address`.
+
+`--city` asserts the file's declared `city` — it does not override it — so a recipe can refuse a file labelled for another city.
+
+The parent `yasli/justfile` (not under version control) delegates its `sc-snapshot-check` recipe to this command. If the recipe is ever lost, restore it as:
+
+```just
+# Validate a local snapshot has the expected v2 nursery-ingest shape.
+[group('scraper')]
+sc-snapshot-check FILE="/tmp/yasli-v2-snapshot.json":
+    cd scraper && uv run python -m yasli_scraper check --city varna "{{ FILE }}"
+```
+
 ## Docker
 
 Mirrors what Railway runs:
