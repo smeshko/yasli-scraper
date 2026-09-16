@@ -95,6 +95,12 @@ def check_snapshot(raw: bytes, expected_city: str | None = None) -> CheckReport:
         text = raw.decode("utf-8")
     except UnicodeDecodeError as exc:
         return CheckReport(_summary(None, []), [f"parse: invalid UTF-8: {exc}"])
+    if text.startswith("\ufeff"):
+        # Python's own message suggests decoding with utf-8-sig, the wrong remedy.
+        return CheckReport(
+            _summary(None, []),
+            ["parse: invalid JSON: leading UTF-8 BOM (run writes plain UTF-8 without one)"],
+        )
     try:
         payload = json.loads(text, parse_constant=_reject_non_finite)
     except json.JSONDecodeError as exc:
