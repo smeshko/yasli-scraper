@@ -146,6 +146,21 @@ def test_invalid_utf8_is_one_failure() -> None:
     assert not report.ok
 
 
+def test_utf16_file_is_rejected_as_invalid_utf8() -> None:
+    """run and R2 write plain UTF-8; json.loads(bytes) must not auto-detect UTF-16."""
+    raw = json.dumps(_snapshot(), ensure_ascii=False).encode("utf-16")
+    report = check_snapshot(raw)
+    assert len(report.failures) == 1
+    assert report.failures[0].startswith("parse: invalid UTF-8:")
+
+
+def test_utf8_bom_is_rejected_as_invalid_json() -> None:
+    report = check_snapshot(b"\xef\xbb\xbf" + _raw(_snapshot()))
+    assert len(report.failures) == 1
+    assert report.failures[0].startswith("parse: invalid JSON:")
+    assert "BOM" in report.failures[0]
+
+
 @pytest.mark.parametrize(
     ("raw", "fragment"),
     [

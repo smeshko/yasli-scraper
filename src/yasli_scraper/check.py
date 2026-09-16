@@ -87,10 +87,15 @@ def check_snapshot(raw: bytes, expected_city: str | None = None) -> CheckReport:
     ``expected_city`` asserts the file's declared ``city``; it does not
     override it. The roster is always selected by the file's own value.
     """
+    # Decode explicitly: json.loads(bytes) would auto-detect UTF-16/32 and
+    # swallow a UTF-8 BOM, but ``run`` and R2 only ever write plain UTF-8, so
+    # anything else is not publishable.
     try:
-        payload = json.loads(raw, parse_constant=_reject_non_finite)
+        text = raw.decode("utf-8")
     except UnicodeDecodeError as exc:
         return CheckReport(_summary(None, []), [f"parse: invalid UTF-8: {exc}"])
+    try:
+        payload = json.loads(text, parse_constant=_reject_non_finite)
     except json.JSONDecodeError as exc:
         return CheckReport(_summary(None, []), [f"parse: invalid JSON: {exc}"])
     except (ValueError, RecursionError) as exc:
