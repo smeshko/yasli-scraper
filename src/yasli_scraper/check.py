@@ -174,7 +174,8 @@ def _check_roster(
     null_address = _missing(rows, "address")
     if null_address:
         failures.append(
-            f"roster: {len(null_address)} institution(s) with null address, expected 0: "
+            f"roster: {len(null_address)} institution(s) with null or absent address, "
+            f"expected 0: "
             f"{_listed(null_address)}"
         )
 
@@ -219,13 +220,15 @@ def _check_coverage(rows: list[Row], failures: list[str]) -> None:
         missing = _missing(rows, key)
         if missing:
             failures.append(
-                f"coverage: {len(missing)} institution(s) with null {key}, expected 0: "
+                f"coverage: {len(missing)} institution(s) with null or absent {key}, "
+                f"expected 0: "
                 f"{_listed(missing)}"
             )
     missing_website = _missing(rows, "website", kind="preschool")
     if missing_website:
         failures.append(
-            f"coverage: {len(missing_website)} preschool(s) with null website, expected 0: "
+            f"coverage: {len(missing_website)} preschool(s) with null or absent website, "
+            f"expected 0: "
             f"{_listed(missing_website)}"
         )
 
