@@ -152,5 +152,5 @@ Task state lives here. Tasks are appended by `scripts/add_task.py` and
 
 - [x] TASK-001: Upload snapshot bytes verbatim from r2.put_snapshot_bytes
 - [x] TASK-002: Add the promote subcommand to the CLI (depends on TASK-001)
-- [ ] TASK-003: Document promote and add the sc-promote recipe (depends on TASK-002)
+- [x] TASK-003: Document promote and add the sc-promote recipe (depends on TASK-002)
 - [ ] TASK-004: Final Validation
