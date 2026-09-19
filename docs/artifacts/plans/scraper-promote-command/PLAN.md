@@ -1,6 +1,6 @@
 # Plan: Promote a validated local snapshot to R2
 
-Status: in-progress
+Status: done
 Branch: feature/yas-17-scraper-promote-command
 Risk: medium
 Epic: none
@@ -117,33 +117,33 @@ See [DECISIONS.md](./DECISIONS.md) for the alternatives weighed and rejected.
 
 ## Acceptance Criteria
 
-- [ ] Both R2 objects written by `promote` are byte-identical to the local file
+- [x] Both R2 objects written by `promote` are byte-identical to the local file
       — a moto test that patches `r2.make_client` (not `put_snapshot_bytes`) so
       the real upload path runs, then compares `get_object(…)["Body"].read()`
       for each key against `path.read_bytes()`
-- [ ] The payload's `scraped_at` is printed before the upload runs, with a
+- [x] The payload's `scraped_at` is printed before the upload runs, with a
       rendered age alongside the exact ISO stamp, and the keys after it
-- [ ] An upload that raises exits `1` with one `error: upload failed: …` line
+- [x] An upload that raises exits `1` with one `error: upload failed: …` line
       naming both object keys and the stage reached — never a bare traceback
-- [ ] A file failing any check exits `1`, prints the same `check failed:` lines
+- [x] A file failing any check exits `1`, prints the same `check failed:` lines
       as `check`, and performs zero S3 calls (the test fails the run if a client
       is built or `put_object` is reached)
-- [ ] `--dry-run` prints the `latest.json` key and a `<UTC-ISO-timestamp>`
+- [x] `--dry-run` prints the `latest.json` key and a `<UTC-ISO-timestamp>`
       placeholder for the timestamped key, performs zero S3 calls, and exits `0`
-- [ ] On success the receipt names the exact timestamped key and the latest key
-- [ ] `--city` mismatch fails before any upload; no `--city` publishes under the
+- [x] On success the receipt names the exact timestamped key and the latest key
+- [x] `--city` mismatch fails before any upload; no `--city` publishes under the
       file's own declared city
-- [ ] Missing R2 env vars fail with the same `required environment variable …`
+- [x] Missing R2 env vars fail with the same `required environment variable …`
       line as `run`, after the checks have run
-- [ ] `run` is behaviourally unchanged: `tests/test_r2.py`,
+- [x] `run` is behaviourally unchanged: `tests/test_r2.py`,
       `tests/test_run_e2e.py` and `tests/test_cli.py` pass with additions only
-- [ ] README documents `promote` (including the stdout caveat) and carries the
+- [x] README documents `promote` (including the stdout caveat) and carries the
       restorable `sc-promote` recipe; `docs/ARCHITECTURE.md` names the
       subcommand and the shared two-phase write
-- [ ] Live: a real scrape passes `sc-snapshot-check`, `promote` publishes it,
+- [x] Live: a real scrape passes `sc-snapshot-check`, `promote` publishes it,
       and the downloaded `snapshots/varna/latest.json` is byte-identical to the
       local file and passes `sc-snapshot-check`
-- [ ] `just sc-test` and `just sc-lint` pass
+- [x] `just sc-test` and `just sc-lint` pass
 
 ## Tasks
 
@@ -153,4 +153,4 @@ Task state lives here. Tasks are appended by `scripts/add_task.py` and
 - [x] TASK-001: Upload snapshot bytes verbatim from r2.put_snapshot_bytes
 - [x] TASK-002: Add the promote subcommand to the CLI (depends on TASK-001)
 - [x] TASK-003: Document promote and add the sc-promote recipe (depends on TASK-002)
-- [ ] TASK-004: Final Validation
+- [x] TASK-004: Final Validation
