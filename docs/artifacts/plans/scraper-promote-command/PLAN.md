@@ -1,6 +1,6 @@
 # Plan: Promote a validated local snapshot to R2
 
-Status: draft
+Status: in-progress
 Branch: feature/yas-17-scraper-promote-command
 Risk: medium
 Epic: none
@@ -150,7 +150,7 @@ See [DECISIONS.md](./DECISIONS.md) for the alternatives weighed and rejected.
 Task state lives here. Tasks are appended by `scripts/add_task.py` and
 `scripts/add_final_task.py`. Update the checkboxes as work progresses.
 
-- [ ] TASK-001: Upload snapshot bytes verbatim from r2.put_snapshot_bytes
+- [x] TASK-001: Upload snapshot bytes verbatim from r2.put_snapshot_bytes
 - [ ] TASK-002: Add the promote subcommand to the CLI (depends on TASK-001)
 - [ ] TASK-003: Document promote and add the sc-promote recipe (depends on TASK-002)
 - [ ] TASK-004: Final Validation
