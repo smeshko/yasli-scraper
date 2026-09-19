@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 from collections.abc import Callable
@@ -9,7 +10,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import boto3
 import pytest
+from moto import mock_aws
 
 import yasli_scraper.__main__ as scraper_main
 from yasli_scraper import pipeline as pipeline_module
@@ -518,3 +521,303 @@ def test_check_without_city_flag_uses_the_files_own_city(
     err = capsys.readouterr().err
     assert rc == 1
     assert any(line.startswith("check failed: ") and "sofia" in line for line in err.splitlines())
+
+
+# --- promote subcommand ---
+#
+# The moto fixture patches `r2.make_client` (never `r2.put_snapshot_bytes`), so
+# the real upload path runs and the assertions can read the stored object bodies
+# back. `_utc_iso_filename` is pinned so the timestamped key is nameable.
+
+PROMOTE_BUCKET = "yasli-promote-test"
+
+# Deliberately different from the fixture's scraped_at (2026-09-15T13:05:33Z):
+# if the two matched, the same string would appear on both the scraped_at line
+# and the key line, and the ordering assertions below would be ambiguous.
+PINNED_STAMP = "2026-09-19T09:00:00Z"
+PINNED_TIMESTAMPED_KEY = f"snapshots/varna/{PINNED_STAMP}.json"
+LATEST_KEY = "snapshots/varna/latest.json"
+FIXTURE_SCRAPED_AT = "2026-09-15T13:05:33Z"
+
+
+@pytest.fixture
+def promote_s3(monkeypatch: pytest.MonkeyPatch) -> Any:
+    with mock_aws():
+        client = boto3.client("s3", region_name="us-east-1")
+        client.create_bucket(Bucket=PROMOTE_BUCKET)
+        monkeypatch.setenv("R2_ACCOUNT_ID", "fake-account-id")
+        monkeypatch.setenv("R2_ACCESS_KEY_ID", "fake-key")
+        monkeypatch.setenv("R2_SECRET_ACCESS_KEY", "fake-secret")
+        # The all_env fixture's "test-r2_bucket" would give NoSuchBucket.
+        monkeypatch.setenv("R2_BUCKET", PROMOTE_BUCKET)
+        monkeypatch.setattr(r2_module, "make_client", lambda env=None: client)
+        monkeypatch.setattr(
+            r2_module, "_utc_iso_filename", lambda now=None: PINNED_STAMP
+        )
+        yield client
+
+
+def _keys_under_varna(client: Any) -> list[str]:
+    objects = client.list_objects_v2(Bucket=PROMOTE_BUCKET, Prefix="snapshots/varna/")
+    return sorted(o["Key"] for o in objects.get("Contents", []))
+
+
+def test_promote_valid_file_uploads_the_files_exact_bytes(
+    tmp_path: Path, promote_s3: Any, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The whole point of YAS-17: checked bytes == published bytes."""
+    path = _file_valid(tmp_path)
+
+    rc = main(["promote", str(path)])
+
+    assert rc == 0
+    # No --city passed: the key prefix comes from the file's own declared city.
+    assert _keys_under_varna(promote_s3) == [PINNED_TIMESTAMPED_KEY, LATEST_KEY]
+    for key in (PINNED_TIMESTAMPED_KEY, LATEST_KEY):
+        body = promote_s3.get_object(Bucket=PROMOTE_BUCKET, Key=key)["Body"].read()
+        assert body == path.read_bytes()
+
+
+@pytest.mark.parametrize(
+    "make_file",
+    [
+        pytest.param(_file_missing_phone_key, id="missing-contact-key"),
+        pytest.param(_file_null_phone, id="null-phone"),
+        pytest.param(_file_wrong_nursery_count, id="wrong-nursery-count"),
+        pytest.param(_file_invalid_utf8, id="invalid-utf8"),
+    ],
+)
+def test_promote_failing_file_exits_one_and_never_touches_r2(
+    tmp_path: Path,
+    promote_s3: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    make_file: Callable[[Path], Path],
+) -> None:
+    def _forbidden(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("promote must not reach R2 for a failing file")
+
+    monkeypatch.setattr(r2_module, "make_client", _forbidden)
+    monkeypatch.setattr(r2_module, "put_snapshot_bytes", _forbidden)
+
+    path = make_file(tmp_path)
+    report = check_snapshot(path.read_bytes(), expected_city=None)
+    assert not report.ok
+
+    rc = main(["promote", str(path)])
+
+    out, err = capsys.readouterr()
+    assert rc == 1
+    lines = err.splitlines()
+    assert len(lines) == len(report.failures)
+    assert all(line.startswith("check failed: ") for line in lines)
+    assert _keys_under_varna(promote_s3) == []
+
+
+def _boto3_probe(argv: list[str], env: dict[str, str]) -> tuple[int, str]:
+    """Run `promote` in a child and report whether boto3 was ever imported.
+
+    Uses `python -c` rather than `-m yasli_scraper`, which exits before anything
+    can inspect sys.modules. The child reassigns REPO_ENV_PATH because
+    conftest's isolation is in-process only: a subprocess would otherwise read
+    the real repo-root .env and repopulate every R2_* var.
+    """
+    code = (
+        "import sys, pathlib\n"
+        "import yasli_scraper.__main__ as m\n"
+        'm.REPO_ENV_PATH = pathlib.Path("/nonexistent/.env")\n'
+        f"rc = m.main({argv!r})\n"
+        'print(rc, "boto3" in sys.modules)\n'
+    )
+    proc = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        env={**os.environ, **env},
+        timeout=60,
+    )
+    assert b"Traceback" not in proc.stderr, proc.stderr.decode()
+    return proc.returncode, proc.stdout.decode().splitlines()[-1]
+
+
+def test_promote_early_return_never_imports_boto3_on_a_failing_file(
+    tmp_path: Path,
+) -> None:
+    path = _file_wrong_nursery_count(tmp_path)
+
+    returncode, last = _boto3_probe(["promote", str(path)], {})
+
+    assert returncode == 0  # the probe itself exits 0; main()'s rc is printed
+    assert last == "1 False"
+
+
+def test_promote_early_return_never_imports_boto3_on_a_missing_env_var(
+    tmp_path: Path,
+) -> None:
+    path = _file_valid(tmp_path)
+
+    # R2_BUCKET="" rather than deleted: load_dotenv(override=False) will not
+    # replace a key that is already present, and validate_env treats empty as
+    # missing. Deleting it would let a stray .env repopulate it.
+    returncode, last = _boto3_probe(
+        ["promote", str(path)],
+        {
+            "R2_ACCOUNT_ID": "fake-account-id",
+            "R2_ACCESS_KEY_ID": "fake-key",
+            "R2_SECRET_ACCESS_KEY": "fake-secret",
+            "R2_BUCKET": "",
+        },
+    )
+
+    assert returncode == 0
+    assert last == "1 False"
+
+
+def test_promote_early_return_never_imports_boto3_on_a_dry_run(
+    tmp_path: Path,
+) -> None:
+    path = _file_valid(tmp_path)
+
+    returncode, last = _boto3_probe(
+        ["promote", "--dry-run", str(path)],
+        {
+            "R2_ACCOUNT_ID": "fake-account-id",
+            "R2_ACCESS_KEY_ID": "fake-key",
+            "R2_SECRET_ACCESS_KEY": "fake-secret",
+            "R2_BUCKET": "fake-bucket",
+        },
+    )
+
+    assert returncode == 0
+    assert last == "0 False"
+
+
+def test_promote_dry_run_makes_no_s3_call_and_names_both_keys(
+    tmp_path: Path, promote_s3: Any, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = _file_valid(tmp_path)
+
+    rc = main(["promote", "--dry-run", str(path)])
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert LATEST_KEY in out
+    # The real stamp is taken at write time, so the dry run must not imply one.
+    assert "snapshots/varna/<UTC-ISO-timestamp>.json" in out
+    assert PINNED_STAMP not in out
+    assert _keys_under_varna(promote_s3) == []
+
+
+def test_promote_prints_scraped_at_before_the_keys(
+    tmp_path: Path, promote_s3: Any, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = _file_valid(tmp_path)
+
+    rc = main(["promote", str(path)])
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    lines = out.splitlines()
+    scraped_at_line = next(i for i, line in enumerate(lines) if "scraped_at:" in line)
+    timestamped_line = next(
+        i for i, line in enumerate(lines) if PINNED_TIMESTAMPED_KEY in line
+    )
+    latest_line = next(i for i, line in enumerate(lines) if LATEST_KEY in line)
+
+    assert scraped_at_line < timestamped_line
+    assert scraped_at_line < latest_line
+    # The exact ISO stamp stays verbatim in the line; the age makes it legible.
+    assert FIXTURE_SCRAPED_AT in lines[scraped_at_line]
+    assert re.search(r"\(\d+[dhms] .*old\)|\(\d+[dhms] old\)", lines[scraped_at_line])
+
+
+def test_promote_upload_failure_exits_one_with_one_error_line(
+    tmp_path: Path,
+    promote_s3: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def _boom(*args: Any, **kwargs: Any) -> Any:
+        raise RuntimeError("simulated R2 failure")
+
+    monkeypatch.setattr(r2_module, "put_snapshot_bytes", _boom)
+    path = _file_valid(tmp_path)
+
+    rc = main(["promote", str(path)])
+
+    out, err = capsys.readouterr()
+    assert rc == 1
+    assert "Traceback" not in err
+    assert "Traceback" not in out
+    failure_lines = [line for line in err.splitlines() if line.startswith("error: ")]
+    assert len(failure_lines) == 1
+    line = failure_lines[0]
+    assert line.startswith("error: upload failed: ")
+    assert "simulated R2 failure" in line
+    # Both candidate keys are named, because a partial write leaves no return value.
+    assert PINNED_TIMESTAMPED_KEY in line
+    assert LATEST_KEY in line
+    # scraped_at was already on stdout before the write was attempted.
+    assert FIXTURE_SCRAPED_AT in out
+
+
+def test_promote_city_mismatch_exits_one_before_upload(
+    tmp_path: Path, promote_s3: Any, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = _file_valid(tmp_path)
+
+    rc = main(["promote", "--city", "sofia", str(path)])
+
+    err = capsys.readouterr().err
+    assert rc == 1
+    assert any("varna" in line and "sofia" in line for line in err.splitlines())
+    assert _keys_under_varna(promote_s3) == []
+
+
+def test_promote_missing_env_var_exits_one_after_the_summary(
+    tmp_path: Path,
+    promote_s3: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.delenv("R2_ACCOUNT_ID", raising=False)
+    path = _file_valid(tmp_path)
+
+    rc = main(["promote", str(path)])
+
+    out, err = capsys.readouterr()
+    assert rc == 1
+    # The summary is on stdout: the checks ran before the env was consulted.
+    assert json.loads(out)["total"] == 77
+    assert "error: required environment variable R2_ACCOUNT_ID is not set" in err
+    assert _keys_under_varna(promote_s3) == []
+
+
+def test_promote_success_prints_both_keys(
+    tmp_path: Path, promote_s3: Any, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = _file_valid(tmp_path)
+
+    rc = main(["promote", str(path)])
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert PINNED_TIMESTAMPED_KEY in out
+    assert LATEST_KEY in out
+    # Write order: timestamped first, latest second.
+    assert out.index(PINNED_TIMESTAMPED_KEY) < out.index(LATEST_KEY)
+
+
+def test_promote_missing_path_exits_one_with_a_single_error_line(
+    tmp_path: Path, promote_s3: Any, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = tmp_path / "nope.json"
+
+    rc = main(["promote", str(path)])
+
+    out, err = capsys.readouterr()
+    assert rc == 1
+    assert out == ""
+    assert err.splitlines() == [err.rstrip("\n")]
+    assert err.startswith("error: ")
+    assert str(path) in err
+    assert "Traceback" not in err

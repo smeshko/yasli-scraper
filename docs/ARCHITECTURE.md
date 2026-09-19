@@ -77,7 +77,7 @@ Defined in `src/yasli_scraper/models.py`. The backend vendors a copy at `src/yas
 
 ```
 src/yasli_scraper/
-├── __main__.py        CLI entry (argparse, --city, --out)
+├── __main__.py        CLI entry (argparse: run, check, promote)
 ├── http.py            async fetch + retries + Content-Length check
 ├── source.py          dg.uslugi.io client (kindergartens + preschools)
 ├── source_jasla.py    newkg.uslugi.io client (standalone nurseries)
@@ -85,7 +85,7 @@ src/yasli_scraper/
 ├── pipeline.py        orchestrates fetch → parse → build Snapshot
 ├── snapshot.py        SCHEMA_VERSION constant
 ├── models.py          Pydantic Snapshot/Institution/AddressEntry
-├── r2.py              boto3 S3 client, two-phase upload
+├── r2.py              boto3 S3 client, two-phase upload (bytes-level)
 └── tools/             one-offs (schema dump, fixture capture)
 
 schemas/               snapshot.v1.schema.json, snapshot.v2.schema.json
@@ -103,6 +103,8 @@ Each successful run writes two objects, in order:
 2. `snapshots/<city>/latest.json` — what the backend ingest reads.
 
 If step 2 fails after step 1 succeeded, the run exits non-zero but the previous `latest.json` is still intact. The backend never sees a partial snapshot.
+
+Both writers share this path via `r2.put_snapshot_bytes`, which writes the caller's bytes unmodified: `run` serialises its freshly scraped `Snapshot` and delegates, while `promote` hands over the exact bytes of the local file it just checked. `r2.snapshot_keys` is the single definition of the key layout, so a caller can name both keys before the writes begin.
 
 ## Deployment
 

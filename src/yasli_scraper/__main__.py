@@ -6,11 +6,12 @@ import json
 import os
 import sys
 from collections.abc import Sequence
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import dotenv
 
-from yasli_scraper.check import check_snapshot
+from yasli_scraper.check import CheckReport, check_snapshot
 
 REQUIRED_ENV_VARS: tuple[str, ...] = (
     "R2_ACCOUNT_ID",
@@ -64,6 +65,25 @@ def build_parser() -> argparse.ArgumentParser:
         help="Assert the file's declared city (e.g. 'varna'); it does not override it.",
     )
 
+    promote = subparsers.add_parser(
+        "promote",
+        help="Check a local snapshot and publish those exact bytes to R2.",
+    )
+    promote.add_argument("file", type=Path, help="Path to a snapshot JSON file.")
+    promote.add_argument(
+        "--city",
+        default=None,
+        help="Assert the file's declared city (e.g. 'varna'); it does not override it.",
+    )
+    promote.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Validate, resolve the target keys and print them, but make no R2 "
+            "write. The R2 env vars are still required."
+        ),
+    )
+
     return parser
 
 
@@ -77,15 +97,20 @@ def validate_env(env: dict[str, str] | None = None) -> str | None:
     return None
 
 
-def _run_check(path: Path, expected_city: str | None) -> int:
-    # Reads a local file only: no validate_env(), no R2.
+def _read_snapshot_bytes(path: Path) -> bytes | None:
     try:
-        data = path.read_bytes()
+        return path.read_bytes()
     except OSError as exc:
         print(f"error: cannot read {path}: {exc.strerror or exc}", file=sys.stderr)
-        return 1
+        return None
 
-    report = check_snapshot(data, expected_city=expected_city)
+
+def _print_report(report: CheckReport) -> None:
+    """Summary to stdout, one `check failed:` line per failure to stderr.
+
+    The stream split is `check`'s output contract: stdout stays exactly one JSON
+    object so it can be piped, and failures go where this CLI's errors live.
+    """
     summary = json.dumps(report.summary, ensure_ascii=False, indent=2)
     # Keep the summary readable on a UTF-8 console, but fall back to JSON's own
     # \uXXXX escapes when the console cannot encode it (a lone surrogate from a
@@ -99,7 +124,131 @@ def _run_check(path: Path, expected_city: str | None) -> int:
     print(summary)
     for failure in report.failures:
         print(f"check failed: {failure}", file=sys.stderr)
+
+
+def _run_check(path: Path, expected_city: str | None) -> int:
+    # Reads a local file only: no validate_env(), no R2.
+    data = _read_snapshot_bytes(path)
+    if data is None:
+        return 1
+
+    report = check_snapshot(data, expected_city=expected_city)
+    _print_report(report)
     return 0 if report.ok else 1
+
+
+def _render_age(delta: timedelta) -> str:
+    """Human-readable age, so an operator need not subtract dates in their head."""
+    seconds = int(delta.total_seconds())
+    if seconds < 0:
+        return "in the future"
+    days, rest = divmod(seconds, 86_400)
+    hours, rest = divmod(rest, 3_600)
+    minutes, secs = divmod(rest, 60)
+    if days:
+        return f"{days}d {hours}h old"
+    if hours:
+        return f"{hours}h {minutes}m old"
+    if minutes:
+        return f"{minutes}m old"
+    return f"{secs}s old"
+
+
+def _scraped_at_line(scraped_at: str) -> str:
+    """`scraped_at: <exact ISO stamp> (<age>)`.
+
+    The ISO string stays verbatim so tests and greps can match it exactly; the
+    age is what makes it legible against a risk phrased as "a week-old
+    snapshot". Nothing here refuses on age — promote publishes the file you
+    name (DECISIONS §7).
+    """
+    try:
+        moment = datetime.fromisoformat(scraped_at.replace("Z", "+00:00"))
+    except ValueError:
+        return f"scraped_at: {scraped_at}"
+    return (
+        f"scraped_at: {scraped_at} "
+        f"({_render_age(datetime.now(timezone.utc) - moment)})"
+    )
+
+
+def _one_line(text: str) -> str:
+    return " ".join(str(text).split())
+
+
+def _run_promote(path: Path, expected_city: str | None, dry_run: bool) -> int:
+    raw = _read_snapshot_bytes(path)
+    if raw is None:
+        return 1
+
+    report = check_snapshot(raw, expected_city=expected_city)
+    _print_report(report)
+    if not report.ok:
+        return 1
+
+    # `city` and `scraped_at` are read from the validated text rather than from
+    # report.summary: summary carries `city` but not `scraped_at`, and its field
+    # set is `check`'s stdout contract — promote's needs stay out of it. A
+    # passing report guarantees the contract held, so both are strings and
+    # `city` is a known EXPECTED_ROSTER key.
+    payload = json.loads(raw.decode("utf-8"))
+    city = payload.get("city")
+    scraped_at = payload.get("scraped_at")
+    if not isinstance(city, str) or not isinstance(scraped_at, str):
+        print(
+            "error: validated payload is missing a string city or scraped_at",
+            file=sys.stderr,
+        )
+        return 1
+
+    # --dry-run validates the environment too: a rehearsal should fail on
+    # everything the real run would fail on except the write itself, and
+    # `check` already covers the credential-free case (DECISIONS §5).
+    missing = validate_env()
+    if missing is not None:
+        print(
+            f"error: required environment variable {missing} is not set",
+            file=sys.stderr,
+        )
+        return 1
+
+    # Printed before any write: a line that appears only once the object is
+    # live is a post-mortem, not a mitigation.
+    print(_scraped_at_line(scraped_at))
+
+    if dry_run:
+        # The real stamp is taken at write time, so naming an exact key here
+        # would be a lie by the time the real promote runs.
+        print(f"would write: snapshots/{city}/<UTC-ISO-timestamp>.json")
+        print(f"would write: snapshots/{city}/latest.json")
+        return 0
+
+    # Imported here, at the last possible point: r2.py imports boto3 at module
+    # scope, so this position is the only thing making "a refused promote never
+    # imports boto3" true.
+    from yasli_scraper import r2
+
+    now = datetime.now(timezone.utc)
+    # Both keys are resolved up front: put_snapshot_bytes returns them only on
+    # success, so without this a partial write would leave no record of the key
+    # that landed — exactly the state the rollback story is about.
+    timestamped_key, latest_key = r2.snapshot_keys(city, now)
+
+    try:
+        r2.put_snapshot_bytes(city, raw, now=now)
+    except Exception as exc:
+        print(
+            f"error: upload failed: {_one_line(exc)} "
+            f"[stage: two-phase write started; timestamped key {timestamped_key} "
+            f"may already exist, latest key {latest_key} may still hold the "
+            f"previous payload — verify both before rolling back]",
+            file=sys.stderr,
+        )
+        return 1
+
+    print(f"published: {timestamped_key}")
+    print(f"published: {latest_key}")
+    return 0
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -110,6 +259,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "check":
         return _run_check(args.file, args.city)
+
+    if args.command == "promote":
+        return _run_promote(args.file, args.city, args.dry_run)
 
     if args.command == "run":
         if args.out is not None:
