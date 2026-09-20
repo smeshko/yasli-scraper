@@ -18,10 +18,13 @@ charter linked to the same Linear Project.
 ## Scope
 
 - Backend: contact fields, curated coordinates and the enriched profile API
-  (backend epic 01); the free-places live read (backend epic 02).
+  (backend epic 01). The free-places live read (backend epic 02) is
+  **deferred as of 2026-09-19** — the source table was measured 88 days stale
+  and unchanged in a month; see that epic for the numbers.
 - Scraper: carrying the source's contact metadata into the snapshot (scraper epic 01).
 - Frontend: the detail page with map (frontend epic 01); the browse-all directory
-  and free places on the page (frontend epic 02).
+  (frontend epic 02 phase 2.1). Free places on the page (phase 2.2) is deferred
+  with the backend read.
 
 ## Member epics
 
