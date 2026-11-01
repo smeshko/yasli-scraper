@@ -5,8 +5,8 @@ a summary of what the file contains plus every failure found, so a bad
 snapshot lists everything wrong with it in one run. It proves *shape*
 (contract, key presence, per-city roster counts, unique identity),
 *coverage* (contacts, preschool websites, whitespace noise) and *identity*
-through pinned anchor ids (not a full manifest), so a file whose
-institutions were swapped under novel ids fails.
+through pinned anchor ids (not a full manifest), so a file whose pinned
+anchor ids are absent fails; ids outside the anchors are not checked.
 
 The semantic checks run on the raw JSON rows, not on the validated model:
 the model defaults an omitted ``phone`` to ``None`` and would hide the
