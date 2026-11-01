@@ -3,9 +3,10 @@
 ``check_snapshot`` turns a snapshot file's bytes into a :class:`CheckReport`:
 a summary of what the file contains plus every failure found, so a bad
 snapshot lists everything wrong with it in one run. It proves *shape*
-(contract, key presence, per-city roster counts, unique identity) and
-*coverage* (contacts, preschool websites, whitespace noise) — not identity:
-a file whose institutions were swapped under novel ids passes (YAS-20).
+(contract, key presence, per-city roster counts, unique identity),
+*coverage* (contacts, preschool websites, whitespace noise) and *identity*
+through pinned anchor ids (not a full manifest), so a file whose
+institutions were swapped under novel ids fails.
 
 The semantic checks run on the raw JSON rows, not on the validated model:
 the model defaults an omitted ``phone`` to ``None`` and would hide the
@@ -45,6 +46,9 @@ class RosterExpectation:
     preschools: int
     # Name fragment of the kindergarten that must carry ``has_infant_group``.
     infant_marker: str
+    # (kind, external_id) pairs a publishable snapshot must contain; they catch
+    # a wholesale id shift that the counts miss.
+    anchors: tuple[tuple[str, str], ...]
 
     @property
     def by_kind(self) -> dict[str, int]:
@@ -62,7 +66,15 @@ class RosterExpectation:
 # Selected by the file's own ``city``; an unknown city is a failure, not a skip.
 EXPECTED_ROSTER: dict[str, RosterExpectation] = {
     "varna": RosterExpectation(
-        nurseries=12, kindergartens=53, preschools=12, infant_marker="Палечко"
+        nurseries=12,
+        kindergartens=53,
+        preschools=12,
+        infant_marker="Палечко",
+        # From the backend's seed snapshot of 2026-09-19; 39 is the Палечко marker.
+        anchors=(
+            *(("nursery", str(i)) for i in range(1, 13)),
+            ("kindergarten", "39"),
+        ),
     ),
 }
 
@@ -219,6 +231,14 @@ def _check_roster(
                 f"roster: {_label(r)} matches infant marker {marker!r} "
                 f"but has_infant_group is {flag!r}, expected True"
             )
+
+    absent = [a for a in roster.anchors if a not in identities]
+    if absent:
+        failures.append(
+            f"roster: {len(absent)} anchor (kind, external_id) pair(s) absent, "
+            f"expected present: "
+            + _truncated([_printable(f"{kind}/{external_id}") for kind, external_id in absent])
+        )
 
 
 def _check_coverage(rows: list[Row], failures: list[str]) -> None:
