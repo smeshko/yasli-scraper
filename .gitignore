@@ -27,3 +27,6 @@ env/
 # OS
 .DS_Store
 Thumbs.db
+.sail-runs/
+.sail/sail.d.ts
+.sail/sail-intakes.d.ts
