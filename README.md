@@ -38,7 +38,7 @@ What is asserted:
 
 - **Contract** — the file must be plain UTF-8 without a BOM (what `run` writes; UTF-16 or a BOM fails the parse) and validates against the `Snapshot` v2 model in strict mode (`schema_version` 2, no extra keys, non-empty strings, nursery `district_code`; types are not coerced, so `"2"` is not `2` and `"true"` is not `true`). Unparseable or structurally malformed input is reported as a failure, not a traceback.
 - **Key presence** — every institution carries all four contact keys (`phone`, `email`, `director`, `website`), even when null.
-- **Roster** — the per-city table `EXPECTED_ROSTER` in `src/yasli_scraper/check.py`: for Varna 12 nurseries, 53 kindergartens, 12 preschools, no null `address`, no duplicate `(kind, external_id)`, and the `Палечко` infant-group marker present with `has_infant_group: true`. The table is selected by the file's own `city`; an unknown city fails. When the portal roster changes, update that table.
+- **Roster** — the per-city table `EXPECTED_ROSTER` in `src/yasli_scraper/check.py`: for Varna 12 nurseries, 53 kindergartens, 12 preschools, no null `address`, no duplicate `(kind, external_id)`, and the `Палечко` infant-group marker present with `has_infant_group: true`, and the anchor `(kind, external_id)` pairs (for Varna nurseries `1`–`12` and kindergarten `39`), so ids shifted under unchanged counts fail. The table is selected by the file's own `city`; an unknown city fails. When the portal roster changes, update that table, anchors included.
 - **Contact coverage** — no null `phone`, `email` or `director` on any institution, and no preschool without a `website`.
 - **Noise** — no leading/trailing whitespace, tab or `\r` in `phone`, `email`, `director`, `website` or `address`.
 
@@ -63,7 +63,7 @@ python -m yasli_scraper promote --city varna /tmp/yasli-v2-snapshot.json
 
 The full workflow is three steps: `sc-snapshot-local` → `sc-snapshot-check` → `sc-promote`.
 
-**It runs the full `check` suite first and refuses on any failure — there is no bypass.** `promote` is exactly `check` + upload, so "it passed `sc-snapshot-check`" and "it is publishable" are the same statement. When the portal roster legitimately changes, update `EXPECTED_ROSTER` in `src/yasli_scraper/check.py` and commit that change; do not look for a `--force` flag, there isn't one.
+**It runs the full `check` suite first and refuses on any failure — there is no bypass.** `promote` is exactly `check` + upload, so "it passed `sc-snapshot-check`" and "it is publishable" are the same statement. When the portal roster legitimately changes, update `EXPECTED_ROSTER` (counts and anchor ids together) in `src/yasli_scraper/check.py` and commit that change; do not look for a `--force` flag, there isn't one.
 
 Flags:
 
