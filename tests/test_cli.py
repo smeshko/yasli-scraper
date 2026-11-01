@@ -273,6 +273,12 @@ def _drop_a_nursery(payload: dict[str, Any]) -> None:
     payload["institutions"].pop(0)
 
 
+def _shift_nursery_ids(payload: dict[str, Any]) -> None:
+    for row in payload["institutions"]:
+        if row["kind"] == "nursery":
+            row["external_id"] = str(int(row["external_id"]) + 100)
+
+
 def _null_institutions(payload: dict[str, Any]) -> None:
     payload["institutions"] = None
 
@@ -297,6 +303,10 @@ def _file_null_phone(tmp_path: Path) -> Path:
 
 def _file_wrong_nursery_count(tmp_path: Path) -> Path:
     return _write_mutated(tmp_path, _drop_a_nursery)
+
+
+def _file_shifted_nursery_ids(tmp_path: Path) -> Path:
+    return _write_mutated(tmp_path, _shift_nursery_ids)
 
 
 def _file_malformed_shape(tmp_path: Path) -> Path:
@@ -379,6 +389,9 @@ def test_check_prints_summary_without_ascii_escaping(
         pytest.param(_file_missing_phone_key, [], ("phone",), id="missing-contact-key"),
         pytest.param(_file_null_phone, [], ("phone",), id="null-phone"),
         pytest.param(_file_wrong_nursery_count, [], ("11 nursery",), id="wrong-nursery-count"),
+        pytest.param(
+            _file_shifted_nursery_ids, [], ("anchor", "nursery/1"), id="shifted-nursery-ids"
+        ),
         pytest.param(_file_malformed_shape, [], ("contract:",), id="malformed-shape"),
         pytest.param(_file_invalid_utf8, [], ("invalid UTF-8",), id="invalid-utf8"),
         pytest.param(_file_utf16, [], ("invalid UTF-8",), id="utf16"),
@@ -584,6 +597,7 @@ def test_promote_valid_file_uploads_the_files_exact_bytes(
         pytest.param(_file_missing_phone_key, id="missing-contact-key"),
         pytest.param(_file_null_phone, id="null-phone"),
         pytest.param(_file_wrong_nursery_count, id="wrong-nursery-count"),
+        pytest.param(_file_shifted_nursery_ids, id="shifted-nursery-ids"),
         pytest.param(_file_invalid_utf8, id="invalid-utf8"),
     ],
 )

@@ -2,7 +2,8 @@
 
 Fixtures are plain dicts (not models) so keys can be deleted and leaves can
 take any JSON type; ``_raw`` serialises them to the bytes ``check_snapshot``
-reads. ``_varna_roster`` builds the 77 rows that match ``EXPECTED_ROSTER["varna"]``.
+reads. ``_varna_roster`` builds the 77 rows that match ``EXPECTED_ROSTER["varna"]``,
+anchors included.
 """
 from __future__ import annotations
 
@@ -421,6 +422,50 @@ def test_same_external_id_across_kinds_is_allowed() -> None:
     assert nursery_ids & kindergarten_ids, "fixture must overlap ids across kinds"
     report = check_snapshot(_raw(_snapshot(rows)))
     assert not any("duplicate" in f for f in report.failures)
+
+
+def test_varna_anchors_pin_the_nurseries_and_the_marker_kindergarten() -> None:
+    expected = tuple(("nursery", str(i)) for i in range(1, 13)) + (("kindergarten", "39"),)
+    assert EXPECTED_ROSTER["varna"].anchors == expected
+
+
+def test_wholesale_nursery_id_shift_with_same_counts_is_reported() -> None:
+    rows = _varna_roster()
+    for r in rows:
+        if r["kind"] == "nursery":
+            r["external_id"] = str(int(r["external_id"]) + 100)
+    report = check_snapshot(_raw(_snapshot(rows)))
+    assert not any("duplicate" in f for f in report.failures)
+    assert report.summary["kinds"] == {"nursery": 12, "kindergarten": 53, "preschool": 12}
+    anchor = [f for f in report.failures if "anchor" in f]
+    assert len(anchor) == 1
+    assert anchor[0].startswith("roster: 12 anchor")
+    assert "nursery/1," in anchor[0]
+    assert anchor[0].endswith("(+7 more)")
+
+
+def test_single_swapped_anchor_is_reported() -> None:
+    rows = _varna_roster()
+    next(r for r in rows if r["kind"] == "nursery" and r["external_id"] == "1")[
+        "external_id"
+    ] = "101"
+    report = check_snapshot(_raw(_snapshot(rows)))
+    anchor = [f for f in report.failures if "anchor" in f]
+    assert len(anchor) == 1
+    assert anchor[0].startswith("roster: 1 anchor")
+    assert anchor[0].endswith("nursery/1")
+
+
+def test_replaced_marker_kindergarten_id_is_reported() -> None:
+    rows = _varna_roster()
+    next(r for r in rows if r["kind"] == "kindergarten" and r["external_id"] == "39")[
+        "external_id"
+    ] = "999"
+    report = check_snapshot(_raw(_snapshot(rows)))
+    anchor = [f for f in report.failures if "anchor" in f]
+    assert len(anchor) == 1
+    assert anchor[0].startswith("roster: 1 anchor")
+    assert anchor[0].endswith("kindergarten/39")
 
 
 # --- contact coverage ---
